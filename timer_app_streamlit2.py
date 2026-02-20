@@ -574,7 +574,7 @@ elif st.session_state.page == "history":
         else:
             st.info("No edit history yet.")
 
-# ------------------- INSTAKILL PAGE (WHITE, NAME + BUTTON IN ONE CARD) -------------------
+# ------------------- INSTAKILL PAGE (WHITE, ONE CARD: NAME + BUTTON, CUSTOM ORDER) -------------------
 elif st.session_state.page == "instakill":
 
     if not st.session_state.auth:
@@ -582,7 +582,7 @@ elif st.session_state.page == "instakill":
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        # -------- TOP NAV (uniform buttons via your global button CSS) --------
+        # -------- TOP NAV --------
         a1, a2, a3, a4, a5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
 
         with a1:
@@ -607,7 +607,36 @@ elif st.session_state.page == "instakill":
         # -------- Toast state --------
         st.session_state.setdefault("ik_toast", None)
 
-        # -------- White card styling (NAME + BUTTON in ONE box) --------
+        # -------- CUSTOM ORDER (exactly as you requested) --------
+        CUSTOM_BOSS_ORDER = [
+            "Venatus",
+            "Viorent",
+            "Ego",
+            "Livera",
+            "Undomiel",
+            "Araneo",
+            "Lady Dalia",
+            "General Aquleus",
+            "Amentis",
+            "Baron Braudmore",
+            "Wannitas",
+            "Metus",
+            "Duplican",
+            "Shuliar",
+            "Gareth",
+            "Titore",
+            "Larba",
+            "Catena",
+            "Secreta",
+            "Ordo",
+            "Asta",
+            "Supore",
+        ]
+
+        order_index = {name: i for i, name in enumerate(CUSTOM_BOSS_ORDER)}
+        timers_sorted = sorted(timers, key=lambda x: order_index.get(x.name, 999))
+
+        # -------- WHITE CARD styling (NAME + BUTTON in ONE box) --------
         st.markdown("""
         <style>
         .ik-card{
@@ -635,7 +664,6 @@ elif st.session_state.page == "instakill":
 
         # -------- GRID --------
         CARDS_PER_ROW = 8
-        timers_sorted = sorted(timers, key=lambda x: x.name.lower())
 
         for start in range(0, len(timers_sorted), CARDS_PER_ROW):
             row = timers_sorted[start:start + CARDS_PER_ROW]
@@ -650,7 +678,10 @@ elif st.session_state.page == "instakill":
                     t = row[j]
 
                     # open card
-                    st.markdown(f"<div class='ik-card'><div class='ik-name'>{t.name}</div>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<div class='ik-card'><div class='ik-name'>{t.name}</div>",
+                        unsafe_allow_html=True
+                    )
 
                     clicked = st.button("Killed Now", key=f"ik_{t.name}", use_container_width=True)
 
