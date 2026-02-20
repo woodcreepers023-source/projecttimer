@@ -414,7 +414,7 @@ st.title("🛡️ Lord9 Santiago 7 Boss Timer")
 # ------------------- Session defaults -------------------
 st.session_state.setdefault("auth", False)
 st.session_state.setdefault("username", "")
-st.session_state.setdefault("page", "world")  # world | login | manage | history
+st.session_state.setdefault("page", "world")  # world | login | manage | history | instakill
 
 def goto(page_name: str):
     st.session_state.page = page_name
@@ -497,7 +497,7 @@ elif st.session_state.page == "manage":
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        top1, top2, top3, top4 = st.columns([1.2, 1.2, 1.2, 2.4])
+        top1, top2, top3, top4, top5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
 
         with top1:
             if st.button("⏱️ Boss Tracker", use_container_width=True):
@@ -506,11 +506,14 @@ elif st.session_state.page == "manage":
             if st.button("📜 History", use_container_width=True):
                 goto("history")
         with top3:
+            if st.button("💀 InstaKill", use_container_width=True):
+                goto("instakill")
+        with top4:
             if st.button("🚪 Logout", use_container_width=True):
                 st.session_state.auth = False
                 st.session_state.username = ""
                 goto("world")
-        with top4:
+        with top5:
             st.success(f"✅ Admin: {st.session_state.username}")
 
         st.subheader("🛠️ Edit Boss Timers (Edit Last Time, Next auto-updates)")
@@ -577,3 +580,116 @@ elif st.session_state.page == "history":
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
+# ------------------- INSTAKILL PAGE -------------------
+elif st.session_state.page == "instakill":
+    if not st.session_state.auth:
+        st.warning("You must login first.")
+        if st.button("Go to Login", use_container_width=True):
+            goto("login")
+    else:
+        a1, a2, a3, a4, a5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
+
+        with a1:
+            if st.button("🛠️ Manage", use_container_width=True):
+                goto("manage")
+        with a2:
+            if st.button("📜 History", use_container_width=True):
+                goto("history")
+        with a3:
+            if st.button("⏱️ Boss Tracker", use_container_width=True):
+                goto("world")
+        with a4:
+            if st.button("🚪 Logout", use_container_width=True):
+                st.session_state.auth = False
+                st.session_state.username = ""
+                goto("world")
+        with a5:
+            st.success(f"✅ Admin: {st.session_state.username}")
+
+        st.subheader("💀 InstaKill")
+
+        st.markdown("""
+        <style>
+        .ik-card{
+            background: #0b0f14;
+            border: 2px solid #5b4500;
+            border-radius: 16px;
+            padding: 18px 14px;
+            text-align: center;
+            box-shadow: 0 14px 34px rgba(0,0,0,.55);
+            margin-bottom: 10px;
+        }
+        .ik-name{
+            font-size: 24px;
+            font-weight: 900;
+            letter-spacing: .06em;
+            color: #f4f4f4;
+            text-transform: uppercase;
+            margin: 0 0 8px 0;
+        }
+        .ik-countdown{
+            font-size: 44px;
+            font-weight: 900;
+            line-height: 1.0;
+            margin: 0;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        CARDS_PER_ROW = 3
+        timers_sorted = sorted(timers, key=lambda x: x.name.lower())
+
+        for start in range(0, len(timers_sorted), CARDS_PER_ROW):
+            row = timers_sorted[start:start + CARDS_PER_ROW]
+            cols = st.columns(CARDS_PER_ROW)
+
+            for j in range(CARDS_PER_ROW):
+                with cols[j]:
+                    if j >= len(row):
+                        st.empty()
+                        continue
+
+                    t = row[j]
+                    t.update_next()
+
+                    cd = t.countdown()
+                    secs = cd.total_seconds()
+                    if secs <= 60:
+                        cd_color = "red"
+                    elif secs <= 300:
+                        cd_color = "orange"
+                    else:
+                        cd_color = "limegreen"
+
+                    st.markdown(
+                        f"""
+                        <div class="ik-card">
+                            <div class="ik-name">{t.name}</div>
+                            <div class="ik-countdown" style="color:{cd_color};">{format_timedelta(cd)}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                    if st.button("Killed Now", key=f"ik_kill_{t.name}", use_container_width=True):
+                        old_time_str = t.last_time.strftime("%Y-%m-%d %I:%M %p")
+
+                        updated_last = now_manila()
+                        updated_next = updated_last + timedelta(seconds=t.interval_seconds)
+
+                        for idx, obj in enumerate(st.session_state.timers):
+                            if obj.name == t.name:
+                                st.session_state.timers[idx].last_time = updated_last
+                                st.session_state.timers[idx].next_time = updated_next
+                                break
+
+                        save_boss_data([
+                            (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
+                            for x in st.session_state.timers
+                        ])
+
+                        log_edit(t.name, old_time_str, updated_last.strftime("%Y-%m-%d %I:%M %p"))
+
+                        st.success(f"✅ Saved: {t.name}")
+                        st.rerun()
