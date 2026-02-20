@@ -121,37 +121,6 @@ class TimerEntry:
 def build_timers():
     return [TimerEntry(*row) for row in load_boss_data()]
 
-# ------------------- Field Boss Table (NO INSTAKILL COLUMN) -------------------
-def display_boss_table_sorted_newstyle(timers_list):
-    timers_sorted = sorted(timers_list, key=lambda t: t.next_time)
-
-    countdown_cells = []
-
-    for t in timers_sorted:
-        secs = t.countdown().total_seconds()
-        if secs <= 60:
-            color = "red"
-        elif secs <= 300:
-            color = "orange"
-        else:
-            color = "green"
-        countdown_cells.append(f"<span style='color:{color}'>{format_timedelta(t.countdown())}</span>")
-
-    data = {
-        "Boss Name": [t.name for t in timers_sorted],
-        "Interval (min)": [t.interval_minutes for t in timers_sorted],
-        "Last Spawn": [t.last_time.strftime("%m-%d-%Y | %H:%M") for t in timers_sorted],
-        "Next Spawn Date": [t.next_time.strftime("%b %d, %Y (%a)") for t in timers_sorted],
-        "Next Spawn Time": [t.next_time.strftime("%I:%M %p") for t in timers_sorted],
-        "Countdown": countdown_cells,
-    }
-
-    df = pd.DataFrame(data)
-    st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
-
-# (Rest of script continues EXACTLY same as your previous version — 
-# InstaKill page, navigation, manage page, history page unchanged)
-
 # ------------------- Weekly Boss Data -------------------
 weekly_boss_data = [
     ("Clemantis", ["Monday 11:30", "Thursday 19:00"]),
@@ -773,5 +742,3 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
-
-
