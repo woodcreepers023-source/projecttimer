@@ -327,8 +327,22 @@ def display_boss_table_sorted_newstyle(timers_list):
 
     st.markdown("""
     <style>
-    table th { text-align: center !important; vertical-align: middle !important; }
-    table td:last-child, table th:last-child { text-align: center; vertical-align: middle; }
+    table th { 
+        text-align: center !important; 
+        vertical-align: middle !important; 
+    }
+    table td { 
+        vertical-align: middle !important; 
+    }
+
+    /* Center columns 2 to 6 (everything except Boss Name) */
+    table td:nth-child(2), table th:nth-child(2),
+    table td:nth-child(3), table th:nth-child(3),
+    table td:nth-child(4), table th:nth-child(4),
+    table td:nth-child(5), table th:nth-child(5),
+    table td:nth-child(6), table th:nth-child(6) {
+        text-align: center !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
