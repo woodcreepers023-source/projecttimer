@@ -787,6 +787,14 @@ elif st.session_state.page == "instakill":
                         updated_last = now_manila()
                         updated_next = updated_last + timedelta(seconds=t.interval_seconds)
 
+                        # ✅ Discord notify (Killed Now)
+                        killer = st.session_state.get("username", "Unknown")
+                        msg = (
+                            f"💀 **{t.name}** killed by **{killer}** — "
+                            f"Next spawn **{updated_next.strftime('%I:%M %p')}** (Manila)"
+                        )
+                        send_discord_message(msg)
+
                         # update session timers
                         for idx, obj in enumerate(st.session_state.timers):
                             if obj.name == t.name:
@@ -824,4 +832,3 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
-
