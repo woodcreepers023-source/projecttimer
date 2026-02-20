@@ -202,36 +202,50 @@ def _warn_key(source: str, boss_name: str, spawn_dt: datetime) -> str:
 def send_5min_warnings(field_timers):
     now = now_manila()
 
-    warn_sent = load_warn_sent()  # ✅ shared across all users/tabs
+    warn_sent = load_warn_sent()
     changed = False
 
+    # -------- FIELD BOSSES --------
     for t in field_timers:
         spawn_dt = t.next_time
         remaining = (spawn_dt - now).total_seconds()
+
         if 0 < remaining <= WARNING_WINDOW_SECONDS:
             key = _warn_key("FIELD", t.name, spawn_dt)
+
             if not warn_sent.get(key, False):
+
+                spawn_str = spawn_dt.strftime("%B %d, %Y | %I:%M %p")
+
                 msg = (
-                    f"⏳ **5-minute warning!**\n"
-                    f"**{t.name}** spawns at **{spawn_dt.strftime('%I:%M %p')}** (Manila)\n"
+                    f"<@&{DISCORD_ROLE_ID}> 🚨 5-minute warning!\n"
+                    f"{t.name} spawns at {spawn_str} (Manila)\n"
                     f"Time left: {format_timedelta(spawn_dt - now)}"
                 )
+
                 if send_discord_message(msg):
                     warn_sent[key] = True
                     changed = True
 
+    # -------- WEEKLY BOSSES --------
     for boss, times in weekly_boss_data:
         for sched in times:
             spawn_dt = get_next_weekly_spawn(sched)
             remaining = (spawn_dt - now).total_seconds()
+
             if 0 < remaining <= WARNING_WINDOW_SECONDS:
                 key = _warn_key("WEEKLY", boss, spawn_dt)
+
                 if not warn_sent.get(key, False):
+
+                    spawn_str = spawn_dt.strftime("%B %d, %Y | %I:%M %p")
+
                     msg = (
-                        f"⏳ **5-minute warning!**\n"
-                        f"**{boss}** spawns at **{spawn_dt.strftime('%I:%M %p')}** (Manila)\n"
+                        f"<@&{DISCORD_ROLE_ID}> 🚨 5-minute warning!\n"
+                        f"{boss} spawns at {spawn_str} (Manila)\n"
                         f"Time left: {format_timedelta(spawn_dt - now)}"
                     )
+
                     if send_discord_message(msg):
                         warn_sent[key] = True
                         changed = True
@@ -834,3 +848,4 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
+
