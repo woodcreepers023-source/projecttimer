@@ -588,36 +588,29 @@ elif st.session_state.page == "instakill":
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        # Optional: live refresh toggle (OFF by default so inputs won't reset while typing)
-        c_live, _ = st.columns([1, 5])
-        with c_live:
-            live_refresh = st.checkbox("Live refresh", value=False)
-        if live_refresh:
-            st_autorefresh(interval=1000, key="instakill_refresh")
+        # top nav
+        a1, a2, a3, a4, a5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
 
-        # Top nav + Add Manual Timer button (like screenshot)
-        t1, t2, t3, t4, t5, t6 = st.columns([1.2, 1.2, 1.4, 1.2, 1.2, 2.0])
-
-        with t1:
+        with a1:
             if st.button("🛠️ Manage", use_container_width=True):
                 goto("manage")
-        with t2:
+        with a2:
             if st.button("📜 History", use_container_width=True):
                 goto("history")
-        with t3:
+        with a3:
             if st.button("⏱️ Boss Tracker", use_container_width=True):
                 goto("world")
-        with t4:
-            add_manual = st.button("➕ Add Manual Timer", use_container_width=True)
-        with t5:
+        with a4:
             if st.button("🚪 Logout", use_container_width=True):
                 st.session_state.auth = False
                 st.session_state.username = ""
                 goto("world")
-        with t6:
+        with a5:
             st.success(f"✅ Admin: {st.session_state.username}")
 
-        # ---------- Styles (gold/black theme) ----------
+        st.subheader("💀 InstaKill")
+
+        # --- Gold/Black card style like your screenshot ---
         st.markdown("""
         <style>
         .ik-card{
@@ -628,7 +621,7 @@ elif st.session_state.page == "instakill":
             text-align: center;
             box-shadow: 0 12px 28px rgba(0,0,0,.6);
             margin-bottom: 14px;
-            min-height: 360px;
+            min-height: 220px;
         }
         .ik-name{
             font-size: 12px;
@@ -656,85 +649,17 @@ elif st.session_state.page == "instakill":
             color: #d6dde8;
             letter-spacing: .08em;
         }
-        .ik-spacer{
-            height: 8px;
-        }
         .ik-footer{
             margin-top: 10px;
             font-size: 10px;
             color: #9aa6b7;
         }
-        /* make inputs + buttons feel like gold theme */
-        div[data-baseweb="input"] input,
-        div[data-baseweb="datepicker"] input {
-            border: 1px solid #8b6a00 !important;
-            background: #050607 !important;
-            color: #e9eef7 !important;
-        }
-        button[kind="secondary"], button[kind="primary"]{
-            border: 1px solid #8b6a00 !important;
-        }
         </style>
         """, unsafe_allow_html=True)
 
-        # ---------- Add Manual Timer ----------
-        if add_manual:
-            st.session_state["show_add_manual"] = True
-        st.session_state.setdefault("show_add_manual", False)
-
-        if st.session_state["show_add_manual"]:
-            with st.expander("➕ Add Manual Timer", expanded=True):
-                m1, m2, m3 = st.columns([2, 1, 2])
-                with m1:
-                    new_boss_name = st.text_input("Boss name", key="manual_name").strip()
-                with m2:
-                    new_interval = st.number_input("Interval (min)", min_value=1, value=600, step=1, key="manual_interval")
-                with m3:
-                    new_next_date = st.date_input("Next spawn date", value=now_manila().date(), key="manual_next_date")
-                    new_next_time = st.time_input("Next spawn time", value=now_manila().time().replace(second=0, microsecond=0),
-                                                  step=60, key="manual_next_time")
-
-                a, b = st.columns(2)
-                with a:
-                    if st.button("Save Manual Timer", use_container_width=True):
-                        if not new_boss_name:
-                            st.error("Boss name is required.")
-                        else:
-                            next_dt = datetime.combine(new_next_date, new_next_time).replace(tzinfo=MANILA)
-                            # derive last_time from next_time - interval
-                            last_dt = next_dt - timedelta(minutes=int(new_interval))
-
-                            # add to timers
-                            st.session_state.timers.append(
-                                TimerEntry(new_boss_name, int(new_interval), last_dt.strftime("%Y-%m-%d %I:%M %p"))
-                            )
-
-                            save_boss_data([
-                                (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
-                                for x in st.session_state.timers
-                            ])
-
-                            st.session_state["show_add_manual"] = False
-                            st.success("✅ Manual timer added!")
-                            st.rerun()
-                with b:
-                    if st.button("Close", use_container_width=True):
-                        st.session_state["show_add_manual"] = False
-                        st.rerun()
-
-        # ---------- Grid ----------
-        CARDS_PER_ROW = 8  # screenshot looks very wide; change to 6 if too tight on small screens
-
-        # keep stable ordering like screenshot (by next spawn soonest OR by name)
+        # Cards per row (adjust if needed)
+        CARDS_PER_ROW = 8
         timers_sorted = sorted(timers, key=lambda x: x.name.lower())
-
-        # helper: persist + history
-        def _persist_and_log(boss_name: str, old_time_str: str, new_last_dt: datetime):
-            save_boss_data([
-                (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
-                for x in st.session_state.timers
-            ])
-            log_edit(boss_name, old_time_str, new_last_dt.strftime("%Y-%m-%d %I:%M %p"))
 
         for start in range(0, len(timers_sorted), CARDS_PER_ROW):
             row = timers_sorted[start:start + CARDS_PER_ROW]
@@ -761,79 +686,42 @@ elif st.session_state.page == "instakill":
                     next_str = t.next_time.strftime("%I:%M %p")
                     last_str = t.last_time.strftime("%m/%d/%Y, %I:%M:%S %p")
 
-                    # Card header
                     st.markdown(
                         f"""
                         <div class="ik-card">
                             <div class="ik-name">{t.name}</div>
                             <div class="ik-countdown" style="color:{cd_color};">{format_timedelta(cd)}</div>
                             <div class="ik-next">NEXT: <strong>{next_str}</strong></div>
-                            <div class="ik-spacer"></div>
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
 
-                    # Inputs (time + date) like screenshot
-                    k_time = f"ik_time_{t.name}"
-                    k_date = f"ik_date_{t.name}"
-
-                    pick_time = st.time_input(
-                        " ", value=now_manila().time().replace(second=0, microsecond=0),
-                        key=k_time, step=60, label_visibility="collapsed"
-                    )
-                    pick_date = st.date_input(
-                        "  ", value=now_manila().date(),
-                        key=k_date, label_visibility="collapsed"
-                    )
-
-                    # Buttons (Killed Now / Set Kill / Set Next)
+                    # ✅ ONLY BUTTON: sets LAST TIME to NOW and saves instantly
                     if st.button("Killed Now", key=f"ik_killednow_{t.name}", use_container_width=True):
                         old_time_str = t.last_time.strftime("%Y-%m-%d %I:%M %p")
 
-                        new_last = now_manila()
-                        new_next = new_last + timedelta(seconds=t.interval_seconds)
+                        updated_last = now_manila()
+                        updated_next = updated_last + timedelta(seconds=t.interval_seconds)
 
+                        # update actual object in session_state
                         for idx, obj in enumerate(st.session_state.timers):
                             if obj.name == t.name:
-                                st.session_state.timers[idx].last_time = new_last
-                                st.session_state.timers[idx].next_time = new_next
+                                st.session_state.timers[idx].last_time = updated_last
+                                st.session_state.timers[idx].next_time = updated_next
                                 break
 
-                        _persist_and_log(t.name, old_time_str, new_last)
+                        # save to JSON
+                        save_boss_data([
+                            (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
+                            for x in st.session_state.timers
+                        ])
+
+                        # history
+                        log_edit(t.name, old_time_str, updated_last.strftime("%Y-%m-%d %I:%M %p"))
+
                         st.rerun()
 
-                    if st.button("Set Kill", key=f"ik_setkill_{t.name}", use_container_width=True):
-                        old_time_str = t.last_time.strftime("%Y-%m-%d %I:%M %p")
-
-                        new_last = datetime.combine(pick_date, pick_time).replace(tzinfo=MANILA)
-                        new_next = new_last + timedelta(seconds=t.interval_seconds)
-
-                        for idx, obj in enumerate(st.session_state.timers):
-                            if obj.name == t.name:
-                                st.session_state.timers[idx].last_time = new_last
-                                st.session_state.timers[idx].next_time = new_next
-                                break
-
-                        _persist_and_log(t.name, old_time_str, new_last)
-                        st.rerun()
-
-                    if st.button("Set Next", key=f"ik_setnext_{t.name}", use_container_width=True):
-                        # Set NEXT spawn directly from input, then derive LAST = NEXT - interval
-                        old_time_str = t.last_time.strftime("%Y-%m-%d %I:%M %p")
-
-                        new_next = datetime.combine(pick_date, pick_time).replace(tzinfo=MANILA)
-                        new_last = new_next - timedelta(seconds=t.interval_seconds)
-
-                        for idx, obj in enumerate(st.session_state.timers):
-                            if obj.name == t.name:
-                                st.session_state.timers[idx].last_time = new_last
-                                st.session_state.timers[idx].next_time = new_next
-                                break
-
-                        _persist_and_log(t.name, old_time_str, new_last)
-                        st.rerun()
-
-                    # Footer: last restart
                     st.markdown(f"<div class='ik-footer'>Last restart: {last_str}</div>", unsafe_allow_html=True)
+
 
