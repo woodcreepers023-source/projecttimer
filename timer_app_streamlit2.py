@@ -614,61 +614,54 @@ elif st.session_state.page == "instakill":
 
         st.subheader("💀 InstaKill")
 
-        # ------------------- Modern Blue Theme -------------------
+        # ------------------- Option 1: Clean Dark (Minimal + Pro) -------------------
         st.markdown("""
         <style>
-
-        /* Card */
         .ik-card{
-          background: #0f172a;
-          border: 1px solid #1e3a8a;
-          border-radius: 14px;
-          padding: 22px 12px;
+          background: #111827;
+          border: 1px solid #2d3748;
+          border-radius: 12px;
+          padding: 20px 10px;
           text-align: center;
           margin-bottom: 10px;
-          transition: all .2s ease;
+          transition: all .15s ease;
         }
 
         .ik-card:hover{
-          border-color: #3b82f6;
-          box-shadow: 0 0 14px rgba(59,130,246,.25);
+          background: #1f2937;
+          border-color: #4b5563;
           transform: translateY(-2px);
         }
 
-        /* Boss Name */
         .ik-name{
           font-size: 14px;
           font-weight: 800;
-          letter-spacing: .18em;
-          color: #e5e7eb;
+          letter-spacing: .15em;
+          color: #f9fafb;
           text-transform: uppercase;
         }
 
-        /* Button Styling */
         div.stButton > button{
           width: 100%;
-          background: #1e293b !important;
-          border: 1px solid #3b82f6 !important;
-          color: #e5e7eb !important;
+          background: #1f2937 !important;
+          border: 1px solid #374151 !important;
+          color: #f9fafb !important;
           border-radius: 10px !important;
           font-weight: 700 !important;
           letter-spacing: .06em !important;
           padding: 0.6rem 0.8rem !important;
-          transition: all .15s ease;
+          transition: all .12s ease;
         }
 
         div.stButton > button:hover{
-          background: #2563eb !important;
-          border-color: #2563eb !important;
-          color: white !important;
-          box-shadow: 0 0 12px rgba(37,99,235,.4);
+          background: #374151 !important;
+          border-color: #4b5563 !important;
         }
-
         </style>
         """, unsafe_allow_html=True)
 
         # ------------------- Grid Layout -------------------
-        CARDS_PER_ROW = 8  # change to 6 if screen is smaller
+        CARDS_PER_ROW = 8  # change to 6 if your screen is smaller
 
         timers_sorted = sorted(timers, key=lambda x: x.name.lower())
 
@@ -694,15 +687,14 @@ elif st.session_state.page == "instakill":
                         unsafe_allow_html=True
                     )
 
-                    # Killed Now Button
+                    # ✅ Killed Now = last_time set to NOW (Manila) and saved
                     if st.button("💀 Killed Now", key=f"ik_killednow_{t.name}", use_container_width=True):
-
                         old_time_str = t.last_time.strftime("%Y-%m-%d %I:%M %p")
 
                         updated_last = now_manila()
                         updated_next = updated_last + timedelta(seconds=t.interval_seconds)
 
-                        # Update actual timer object
+                        # Update actual object in session_state
                         for idx, obj in enumerate(st.session_state.timers):
                             if obj.name == t.name:
                                 st.session_state.timers[idx].last_time = updated_last
