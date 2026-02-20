@@ -575,7 +575,7 @@ elif st.session_state.page == "manage":
                     # small refresh loop to auto-hide
                     st_autorefresh(interval=500, key=f"manage_refresh_{timer.name}")
 
-                    if age >= 2.5:
+                    if age >= 1:
                         st.session_state.manage_toast = None
                         st.rerun()
 
@@ -784,4 +784,5 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
+
 
