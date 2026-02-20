@@ -588,76 +588,29 @@ elif st.session_state.page == "instakill":
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        # top nav
-        a1, a2, a3, a4, a5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
-
-        with a1:
-            if st.button("🛠️ Manage", use_container_width=True):
-                goto("manage")
-        with a2:
-            if st.button("📜 History", use_container_width=True):
-                goto("history")
-        with a3:
-            if st.button("⏱️ Boss Tracker", use_container_width=True):
-                goto("world")
-        with a4:
-            if st.button("🚪 Logout", use_container_width=True):
-                st.session_state.auth = False
-                st.session_state.username = ""
-                goto("world")
-        with a5:
-            st.success(f"✅ Admin: {st.session_state.username}")
-
         st.subheader("💀 InstaKill")
 
-        # --- Gold/Black card style like your screenshot ---
         st.markdown("""
         <style>
         .ik-card{
             background: #07090b;
             border: 2px solid #8b6a00;
             border-radius: 14px;
-            padding: 14px 12px 12px 12px;
+            padding: 30px 10px;
             text-align: center;
             box-shadow: 0 12px 28px rgba(0,0,0,.6);
             margin-bottom: 14px;
-            min-height: 220px;
         }
         .ik-name{
-            font-size: 12px;
+            font-size: 18px;
             font-weight: 900;
-            letter-spacing: .18em;
+            letter-spacing: .2em;
             color: #c9b37a;
             text-transform: uppercase;
-            margin: 0 0 10px 0;
-        }
-        .ik-countdown{
-            font-size: 22px;
-            font-weight: 900;
-            line-height: 1.05;
-            margin: 0;
-            color: #ffffff;
-        }
-        .ik-next{
-            margin-top: 10px;
-            font-size: 10px;
-            color: #aab3c0;
-            letter-spacing: .12em;
-            text-transform: uppercase;
-        }
-        .ik-next strong{
-            color: #d6dde8;
-            letter-spacing: .08em;
-        }
-        .ik-footer{
-            margin-top: 10px;
-            font-size: 10px;
-            color: #9aa6b7;
         }
         </style>
         """, unsafe_allow_html=True)
 
-        # Cards per row (adjust if needed)
         CARDS_PER_ROW = 8
         timers_sorted = sorted(timers, key=lambda x: x.name.lower())
 
@@ -672,56 +625,36 @@ elif st.session_state.page == "instakill":
                         continue
 
                     t = row[j]
-                    t.update_next()
-
-                    cd = t.countdown()
-                    secs = cd.total_seconds()
-                    if secs <= 60:
-                        cd_color = "red"
-                    elif secs <= 300:
-                        cd_color = "orange"
-                    else:
-                        cd_color = "white"
-
-                    next_str = t.next_time.strftime("%I:%M %p")
-                    last_str = t.last_time.strftime("%m/%d/%Y, %I:%M:%S %p")
 
                     st.markdown(
                         f"""
                         <div class="ik-card">
                             <div class="ik-name">{t.name}</div>
-                            <div class="ik-countdown" style="color:{cd_color};">{format_timedelta(cd)}</div>
-                            <div class="ik-next">NEXT: <strong>{next_str}</strong></div>
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
 
-                    # ✅ ONLY BUTTON: sets LAST TIME to NOW and saves instantly
+                    # Killed Now button (still works)
                     if st.button("Killed Now", key=f"ik_killednow_{t.name}", use_container_width=True):
                         old_time_str = t.last_time.strftime("%Y-%m-%d %I:%M %p")
 
                         updated_last = now_manila()
                         updated_next = updated_last + timedelta(seconds=t.interval_seconds)
 
-                        # update actual object in session_state
                         for idx, obj in enumerate(st.session_state.timers):
                             if obj.name == t.name:
                                 st.session_state.timers[idx].last_time = updated_last
                                 st.session_state.timers[idx].next_time = updated_next
                                 break
 
-                        # save to JSON
                         save_boss_data([
                             (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
                             for x in st.session_state.timers
                         ])
 
-                        # history
                         log_edit(t.name, old_time_str, updated_last.strftime("%Y-%m-%d %I:%M %p"))
 
                         st.rerun()
-
-                    st.markdown(f"<div class='ik-footer'>Last restart: {last_str}</div>", unsafe_allow_html=True)
 
 
