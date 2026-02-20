@@ -15,10 +15,7 @@ DATA_FILE = Path("boss_timers.json")
 HISTORY_FILE = Path("boss_history.json")
 WARN_FILE = Path("warn_sent.json")  # ✅ shared warn dedupe for everyone
 
-# ✅ TEMP ONLY: paste your webhook here locally (do NOT upload to GitHub)
-DISCORD_WEBHOOK_URL = "PASTE_YOUR_DISCORD_WEBHOOK_HERE"
-
-# ✅ Role mention (your role ID)
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1473903250557243525/cV1UCkQ9Pfo3d4hBuSCwqX1xDf69tSWjyl9h413i0znMQENP8bkRAUMjrZAC-vwsbJpv"
 DISCORD_ROLE_ID = "848324666584989718"
 
 ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "1")
@@ -852,3 +849,4 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
+
