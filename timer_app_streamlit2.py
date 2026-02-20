@@ -17,7 +17,7 @@ HISTORY_FILE = Path("boss_history.json")
 # DISCORD_WEBHOOK_URL="..."  (REDACTED)
 # ADMIN_PASSWORD="..."       (optional to keep here, but better in secrets too)
 DISCORD_WEBHOOK_URL = st.secrets.get("DISCORD_WEBHOOK_URL", "")
-ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "bestgame")
+ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "1")
 
 WARNING_WINDOW_SECONDS = 5 * 60  # 5 minutes
 
@@ -656,5 +656,6 @@ elif st.session_state.page == "instakill":
                         log_edit(t.name, old_time_str, updated_last.strftime("%Y-%m-%d %I:%M %p"))
 
                         st.rerun()
+
 
 
