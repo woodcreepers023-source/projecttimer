@@ -6,27 +6,65 @@ import pandas as pd
 import requests
 import json
 from pathlib import Path
+import time
 
 # ------------------- Config -------------------
 MANILA = ZoneInfo("Asia/Manila")
 
 DATA_FILE = Path("boss_timers.json")
 HISTORY_FILE = Path("boss_history.json")
+WARN_FILE = Path("warn_sent.json")   # ✅ GLOBAL WARN STORAGE
 
 DISCORD_WEBHOOK_URL = st.secrets.get("DISCORD_WEBHOOK_URL", "")
 ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "1")
 
 WARNING_WINDOW_SECONDS = 5 * 60  # 5 minutes
 
+
 # ------------------- Discord -------------------
 def send_discord_message(message: str) -> bool:
     if not DISCORD_WEBHOOK_URL:
         return False
+
+    payload = {"content": message}
+
     try:
-        r = requests.post(DISCORD_WEBHOOK_URL, json={"content": message}, timeout=10)
+        r = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
+
+        # Handle Discord rate limit (429)
+        if r.status_code == 429:
+            try:
+                data = r.json()
+                retry_after = float(data.get("retry_after", 1.0))
+            except Exception:
+                retry_after = 1.0
+            time.sleep(min(retry_after, 2.5))
+            r = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
+
         return 200 <= r.status_code < 300
     except Exception:
         return False
+
+
+# ------------------- Global Warn Storage -------------------
+def load_warn_sent() -> dict:
+    if WARN_FILE.exists():
+        try:
+            with open(WARN_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+def save_warn_sent(warn_dict: dict) -> None:
+    if len(warn_dict) > 1200:
+        warn_dict = dict(list(warn_dict.items())[-900:])
+
+    with open(WARN_FILE, "w", encoding="utf-8") as f:
+        json.dump(warn_dict, f, indent=2)
+
 
 # ------------------- Helpers -------------------
 def format_timedelta(td: timedelta) -> str:
@@ -40,34 +78,10 @@ def format_timedelta(td: timedelta) -> str:
         return f"{days}d {hours:02}:{minutes:02}:{seconds:02}"
     return f"{hours:02}:{minutes:02}:{seconds:02}"
 
+
 def now_manila() -> datetime:
     return datetime.now(tz=MANILA)
 
-# ------------------- Default Boss Data -------------------
-default_boss_data = [
-    ("Venatus", 600, "2025-09-19 12:31 PM"),
-    ("Viorent", 600, "2025-09-19 12:32 PM"),
-    ("Ego", 1260, "2025-09-19 04:32 PM"),
-    ("Livera", 1440, "2025-09-19 04:36 PM"),
-    ("Undomiel", 1440, "2025-09-19 04:42 PM"),
-    ("Araneo", 1440, "2025-09-19 04:33 PM"),
-    ("Lady Dalia", 1080, "2025-09-19 05:58 AM"),
-    ("General Aquleus", 1740, "2025-09-18 09:45 PM"),
-    ("Amentis", 1740, "2025-09-18 09:42 PM"),
-    ("Baron Braudmore", 1920, "2025-09-19 12:37 AM"),
-    ("Wannitas", 2880, "2025-09-19 04:46 PM"),
-    ("Metus", 2880, "2025-09-18 06:53 AM"),
-    ("Duplican", 2880, "2025-09-19 04:40 PM"),
-    ("Shuliar", 2100, "2025-09-19 03:49 AM"),
-    ("Gareth", 1920, "2025-09-19 12:38 AM"),
-    ("Titore", 2220, "2025-09-19 04:36 PM"),
-    ("Larba", 2100, "2025-09-19 03:55 AM"),
-    ("Catena", 2100, "2025-09-19 04:12 AM"),
-    ("Secreta", 3720, "2025-09-17 05:15 PM"),
-    ("Ordo", 3720, "2025-09-17 05:07 PM"),
-    ("Asta", 3720, "2025-09-17 04:59 PM"),
-    ("Supore", 3720, "2025-09-20 07:15 AM"),
-]
 
 # ------------------- JSON Persistence -------------------
 def load_boss_data():
@@ -76,128 +90,62 @@ def load_boss_data():
             return json.load(f)
     return default_boss_data.copy()
 
+
 def save_boss_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
-# ------------------- Edit History -------------------
-def log_edit(boss_name: str, old_time: str, new_time: str):
-    history = []
-    if HISTORY_FILE.exists():
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            history = json.load(f)
 
-    edited_by = st.session_state.get("username", "Unknown")
-    entry = {
-        "boss": boss_name,
-        "old_time": old_time,
-        "new_time": new_time,
-        "edited_at": now_manila().strftime("%Y-%m-%d %I:%M %p"),
-        "edited_by": edited_by,
-    }
-    history.append(entry)
-
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f, indent=4)
-
-# ------------------- Timer Class -------------------
-class TimerEntry:
-    def __init__(self, name: str, interval_minutes: int, last_time_str: str):
-        self.name = name
-        self.interval_minutes = int(interval_minutes)
-        self.interval_seconds = self.interval_minutes * 60
-        self.last_time = datetime.strptime(last_time_str, "%Y-%m-%d %I:%M %p").replace(tzinfo=MANILA)
-        self.next_time = self.last_time + timedelta(seconds=self.interval_seconds)
-
-    def update_next(self):
-        now = now_manila()
-        while self.next_time < now:
-            self.last_time = self.next_time
-            self.next_time = self.last_time + timedelta(seconds=self.interval_seconds)
-
-    def countdown(self) -> timedelta:
-        return self.next_time - now_manila()
-
-def build_timers():
-    return [TimerEntry(*row) for row in load_boss_data()]
-
-# ------------------- Weekly Boss Data -------------------
-weekly_boss_data = [
-    ("Clemantis", ["Monday 11:30", "Thursday 19:00"]),
-    ("Saphirus", ["Sunday 17:00", "Tuesday 11:30"]),
-    ("Neutro", ["Tuesday 19:00", "Thursday 11:30"]),
-    ("Thymele", ["Monday 19:00", "Wednesday 11:30"]),
-    ("Milavy", ["Saturday 15:00"]),
-    ("Ringor", ["Saturday 17:00"]),
-    ("Roderick", ["Friday 19:00"]),
-    ("Auraq", ["Friday 22:00", "Wednesday 21:00"]),
-    ("Chaiflock", ["Saturday 22:00"]),
-    ("Benji", ["Sunday 21:00"]),
-    ("Tumier", ["Sunday 19:00"]),
-    ("Icaruthia (Kransia)", ["Tuesday 21:00", "Friday 21:00"]),
-    ("Motti (Kransia)", ["Wednesday 19:00", "Saturday 19:00"]),
-    ("Nevaeh (Kransia)", ["Sunday 22:00"]),
-]
-
-def get_next_weekly_spawn(day_time: str) -> datetime:
-    now = now_manila()
-    day_time = " ".join(day_time.split())
-    day, time_str = day_time.split(" ", 1)
-    target_time = datetime.strptime(time_str, "%H:%M").time()
-
-    weekday_map = {
-        "Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3,
-        "Friday": 4, "Saturday": 5, "Sunday": 6,
-    }
-    target_weekday = weekday_map[day]
-
-    days_ahead = (target_weekday - now.weekday()) % 7
-    spawn_date = (now + timedelta(days=days_ahead)).date()
-    spawn_dt = datetime.combine(spawn_date, target_time).replace(tzinfo=MANILA)
-
-    if spawn_dt <= now:
-        spawn_dt += timedelta(days=7)
-    return spawn_dt
-
-# ------------------- 5-minute warning logic -------------------
+# ------------------- Warn Key -------------------
 def _warn_key(source: str, boss_name: str, spawn_dt: datetime) -> str:
     return f"{source}|{boss_name}|{spawn_dt.strftime('%Y-%m-%d %H:%M')}"
 
-def send_5min_warnings(field_timers):
-    st.session_state.setdefault("warn_sent", {})
-    now = now_manila()
 
+# ------------------- 5-minute warning logic (GLOBAL SAFE) -------------------
+def send_5min_warnings(field_timers):
+    now = now_manila()
+    warn_sent = load_warn_sent()
+    changed = False
+
+    # FIELD BOSSES
     for t in field_timers:
         spawn_dt = t.next_time
         remaining = (spawn_dt - now).total_seconds()
+
         if 0 < remaining <= WARNING_WINDOW_SECONDS:
             key = _warn_key("FIELD", t.name, spawn_dt)
-            if not st.session_state.warn_sent.get(key, False):
+
+            if not warn_sent.get(key, False):
                 msg = (
                     f"⏳ **5-minute warning!**\n"
                     f"**{t.name}** spawns at **{spawn_dt.strftime('%I:%M %p')}** (Manila)\n"
                     f"Time left: {format_timedelta(spawn_dt - now)}"
                 )
                 if send_discord_message(msg):
-                    st.session_state.warn_sent[key] = True
+                    warn_sent[key] = True
+                    changed = True
 
+    # WEEKLY BOSSES
     for boss, times in weekly_boss_data:
         for sched in times:
             spawn_dt = get_next_weekly_spawn(sched)
             remaining = (spawn_dt - now).total_seconds()
+
             if 0 < remaining <= WARNING_WINDOW_SECONDS:
                 key = _warn_key("WEEKLY", boss, spawn_dt)
-                if not st.session_state.warn_sent.get(key, False):
+
+                if not warn_sent.get(key, False):
                     msg = (
                         f"⏳ **5-minute warning!**\n"
                         f"**{boss}** spawns at **{spawn_dt.strftime('%I:%M %p')}** (Manila)\n"
                         f"Time left: {format_timedelta(spawn_dt - now)}"
                     )
                     if send_discord_message(msg):
-                        st.session_state.warn_sent[key] = True
+                        warn_sent[key] = True
+                        changed = True
 
-    if len(st.session_state.warn_sent) > 600:
-        st.session_state.warn_sent = dict(list(st.session_state.warn_sent.items())[-500:])
+    if changed:
+        save_warn_sent(warn_sent)
 
 # ------------------- Banner -------------------
 def next_boss_banner_combined(field_timers):
@@ -784,6 +732,7 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
+
 
 
 
