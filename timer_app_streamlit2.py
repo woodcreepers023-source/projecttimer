@@ -13,9 +13,6 @@ MANILA = ZoneInfo("Asia/Manila")
 DATA_FILE = Path("boss_timers.json")
 HISTORY_FILE = Path("boss_history.json")
 
-# ✅ Put these in .streamlit/secrets.toml instead of hardcoding
-# DISCORD_WEBHOOK_URL="..."  (REDACTED)
-# ADMIN_PASSWORD="..."       (optional to keep here, but better in secrets too)
 DISCORD_WEBHOOK_URL = st.secrets.get("DISCORD_WEBHOOK_URL", "")
 ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "1")
 
@@ -84,40 +81,25 @@ def save_boss_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
-# ------------------- HISTORY PAGE -------------------
-elif st.session_state.page == "history":
-    if not st.session_state.auth:
-        st.warning("You must login first.")
-        if st.button("Go to Login", use_container_width=True):
-            goto("login")
-    else:
-        t1, t2, t3, t4 = st.columns([1.2, 1.2, 1.2, 3.4])
+# ------------------- Edit History (NO DISCORD) -------------------
+def log_edit(boss_name: str, old_time: str, new_time: str):
+    history = []
+    if HISTORY_FILE.exists():
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+            history = json.load(f)
 
-        with t1:
-            if st.button("🛠️ Manage", use_container_width=True):
-                goto("manage")
-        with t2:
-            if st.button("💀 InstaKill", use_container_width=True):
-                goto("instakill")
-        with t3:
-            if st.button("⏱️ Boss Tracker", use_container_width=True):
-                goto("world")
-        with t4:
-            st.success(f"✅ Admin: {st.session_state.username}")
+    edited_by = st.session_state.get("username", "Unknown")
+    entry = {
+        "boss": boss_name,
+        "old_time": old_time,
+        "new_time": new_time,
+        "edited_at": now_manila().strftime("%Y-%m-%d %I:%M %p"),
+        "edited_by": edited_by,
+    }
+    history.append(entry)
 
-        st.subheader("📜 Edit History")
-
-        if HISTORY_FILE.exists():
-            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                history = json.load(f)
-
-            if history:
-                df_history = pd.DataFrame(history).sort_values("edited_at", ascending=False)
-                st.dataframe(df_history, use_container_width=True)
-            else:
-                st.info("No edits yet.")
-        else:
-            st.info("No edit history yet.")
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(history, f, indent=4)
 
 # ------------------- Timer Class -------------------
 class TimerEntry:
@@ -185,14 +167,9 @@ def _warn_key(source: str, boss_name: str, spawn_dt: datetime) -> str:
     return f"{source}|{boss_name}|{spawn_dt.strftime('%Y-%m-%d %H:%M')}"
 
 def send_5min_warnings(field_timers):
-    """
-    Sends ONE warning per boss per spawn when remaining time is within 5 minutes.
-    Only runs while the app reruns (world page open).
-    """
     st.session_state.setdefault("warn_sent", {})
     now = now_manila()
 
-    # Field bosses
     for t in field_timers:
         spawn_dt = t.next_time
         remaining = (spawn_dt - now).total_seconds()
@@ -207,7 +184,6 @@ def send_5min_warnings(field_timers):
                 if send_discord_message(msg):
                     st.session_state.warn_sent[key] = True
 
-    # Weekly bosses
     for boss, times in weekly_boss_data:
         for sched in times:
             spawn_dt = get_next_weekly_spawn(sched)
@@ -223,7 +199,6 @@ def send_5min_warnings(field_timers):
                     if send_discord_message(msg):
                         st.session_state.warn_sent[key] = True
 
-    # prevent unbounded growth
     if len(st.session_state.warn_sent) > 600:
         st.session_state.warn_sent = dict(list(st.session_state.warn_sent.items())[-500:])
 
@@ -335,7 +310,6 @@ def display_boss_table_sorted_newstyle(timers_list):
 
     for t in timers_sorted:
         secs = t.countdown().total_seconds()
-
         if secs <= 60:
             color = "red"
         elif secs <= 300:
@@ -344,8 +318,6 @@ def display_boss_table_sorted_newstyle(timers_list):
             color = "green"
 
         countdown_cells.append(f"<span style='color:{color}'>{format_timedelta(t.countdown())}</span>")
-
-        # ✅ InstaKill: skull on every row (only shown for admin below)
         instakill_cells.append("<span class='skull-icon' title='InstaKill'>💀</span>")
 
     data = {
@@ -357,40 +329,17 @@ def display_boss_table_sorted_newstyle(timers_list):
         "Countdown": countdown_cells,
     }
 
-    # ✅ InstaKill column ONLY appears when admin is logged in
     if st.session_state.get("auth"):
         data["InstaKill"] = instakill_cells
 
     df = pd.DataFrame(data)
 
-    # ✅ Center ALL column TITLES (headers) + keep InstaKill centered + Hover turns red
     st.markdown("""
     <style>
-
-    /* ✅ Center ALL table headers (titles) */
-    table th {
-        text-align: center !important;
-        vertical-align: middle !important;
-    }
-
-    /* ✅ If InstaKill exists, keep last column centered */
-    table td:last-child,
-    table th:last-child {
-        text-align: center;
-        vertical-align: middle;
-    }
-
-    .skull-icon{
-        cursor: default;
-        display: inline-block;
-        padding: 2px 6px;
-        border-radius: 6px;
-        line-height: 1.2;
-        transition: background-color .15s ease;
-    }
-    .skull-icon:hover{
-        background-color: red;
-    }
+    table th { text-align: center !important; vertical-align: middle !important; }
+    table td:last-child, table th:last-child { text-align: center; vertical-align: middle; }
+    .skull-icon{ cursor: default; display: inline-block; padding: 2px 6px; border-radius: 6px; line-height: 1.2; transition: background-color .15s ease; }
+    .skull-icon:hover{ background-color: red; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -447,11 +396,10 @@ timers = st.session_state.timers
 for t in timers:
     t.update_next()
 
-# ✅ Send Discord 5-min warnings ONLY on world page
 if st.session_state.page == "world":
     send_5min_warnings(timers)
 
-# ------------------- WORLD PAGE: LEFT BUTTON + CENTER BANNER -------------------
+# ------------------- WORLD PAGE HEADER -------------------
 if st.session_state.page == "world":
     left_btn, mid_banner, right_space = st.columns([2, 6, 2])
 
@@ -473,7 +421,6 @@ st.divider()
 # ------------------- WORLD PAGE CONTENT -------------------
 if st.session_state.page == "world":
     st.subheader("🗡️ Field Boss Spawns (Sorted by Next Spawn)")
-
     col1, col2 = st.columns([2, 1])
     with col1:
         display_boss_table_sorted_newstyle(timers)
@@ -565,21 +512,25 @@ elif st.session_state.page == "manage":
 
                     st.success(f"✅ {timer.name} updated! Next: {updated_next_time.strftime('%Y-%m-%d %I:%M %p')}")
 
-# ------------------- HISTORY PAGE -------------------
+# ------------------- HISTORY PAGE (FIXED: add InstaKill button) -------------------
 elif st.session_state.page == "history":
     if not st.session_state.auth:
         st.warning("You must login first.")
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        t1, t2, t3 = st.columns([1.2, 1.2, 3.6])
+        t1, t2, t3, t4 = st.columns([1.2, 1.2, 1.2, 3.4])
+
         with t1:
             if st.button("🛠️ Manage", use_container_width=True):
                 goto("manage")
         with t2:
+            if st.button("💀 InstaKill", use_container_width=True):
+                goto("instakill")
+        with t3:
             if st.button("⏱️ Boss Tracker", use_container_width=True):
                 goto("world")
-        with t3:
+        with t4:
             st.success(f"✅ Admin: {st.session_state.username}")
 
         st.subheader("📜 Edit History")
@@ -596,14 +547,13 @@ elif st.session_state.page == "history":
         else:
             st.info("No edit history yet.")
 
-# ------------------- INSTAKILL PAGE -------------------
+# ------------------- INSTAKILL PAGE (FIXED: toast 2–3 sec) -------------------
 elif st.session_state.page == "instakill":
     if not st.session_state.auth:
         st.warning("You must login first.")
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        # Top nav
         a1, a2, a3, a4, a5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
 
         with a1:
@@ -625,10 +575,12 @@ elif st.session_state.page == "instakill":
 
         st.subheader("💀 InstaKill")
 
-        # --- Better gold/black design (card + button styling) ---
+        # ---- toast state ----
+        st.session_state.setdefault("ik_toast", None)
+
+        # ---- gold/black styling (your current style) ----
         st.markdown("""
         <style>
-        /* Card */
         .ik-card{
           background: radial-gradient(120% 120% at 50% 0%, #111827 0%, #050608 55%, #020304 100%);
           border: 1px solid rgba(245, 158, 11, .55);
@@ -642,8 +594,6 @@ elif st.session_state.page == "instakill":
           position: relative;
           overflow: hidden;
         }
-
-        /* Subtle gold glow blob */
         .ik-card:before{
           content:"";
           position:absolute;
@@ -652,8 +602,6 @@ elif st.session_state.page == "instakill":
           background: radial-gradient(circle, rgba(245,158,11,.18), transparent 60%);
           filter: blur(2px);
         }
-
-        /* Name */
         .ik-name{
           font-size: 14px;
           font-weight: 900;
@@ -661,8 +609,6 @@ elif st.session_state.page == "instakill":
           color: #fbbf24;
           text-transform: uppercase;
         }
-
-        /* Streamlit button -> match theme */
         div.stButton > button{
           width: 100%;
           border-radius: 12px !important;
@@ -679,16 +625,10 @@ elif st.session_state.page == "instakill":
           box-shadow: 0 10px 22px rgba(245,158,11,.12) !important;
           transform: translateY(-1px);
         }
-        div.stButton > button:active{
-          transform: translateY(0px);
-        }
         </style>
         """, unsafe_allow_html=True)
 
-        # Cards per row (change to 6 or 5 if your screen is smaller)
         CARDS_PER_ROW = 8
-
-        # Keep stable ordering
         timers_sorted = sorted(timers, key=lambda x: x.name.lower())
 
         for start in range(0, len(timers_sorted), CARDS_PER_ROW):
@@ -703,7 +643,6 @@ elif st.session_state.page == "instakill":
 
                     t = row[j]
 
-                    # Card: ONLY boss name
                     st.markdown(
                         f"""
                         <div class="ik-card">
@@ -713,27 +652,43 @@ elif st.session_state.page == "instakill":
                         unsafe_allow_html=True
                     )
 
-                    # ✅ ONLY BUTTON: sets LAST TIME to NOW and saves instantly
                     if st.button("💀 Killed Now", key=f"ik_killednow_{t.name}", use_container_width=True):
                         old_time_str = t.last_time.strftime("%Y-%m-%d %I:%M %p")
 
                         updated_last = now_manila()
                         updated_next = updated_last + timedelta(seconds=t.interval_seconds)
 
-                        # update actual object in session_state
                         for idx, obj in enumerate(st.session_state.timers):
                             if obj.name == t.name:
                                 st.session_state.timers[idx].last_time = updated_last
                                 st.session_state.timers[idx].next_time = updated_next
                                 break
 
-                        # save to JSON
                         save_boss_data([
                             (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
                             for x in st.session_state.timers
                         ])
 
-                        # history
                         log_edit(t.name, old_time_str, updated_last.strftime("%Y-%m-%d %I:%M %p"))
 
+                        # ✅ Set toast and rerun (toast will show ~2.5 seconds)
+                        st.session_state.ik_toast = {
+                            "msg": f"✅ {t.name} updated! Next: {updated_next.strftime('%Y-%m-%d %I:%M %p')}",
+                            "ts": now_manila(),
+                        }
                         st.rerun()
+
+        # ---- Toast shown at bottom (like your screenshot), auto-clears ----
+        if st.session_state.ik_toast:
+            toast = st.session_state.ik_toast
+            age = (now_manila() - toast["ts"]).total_seconds()
+
+            st.success(toast["msg"])
+
+            # refresh while toast is visible
+            st_autorefresh(interval=500, key="ik_toast_refresh")
+
+            # clear after ~2.5 seconds
+            if age >= 2.5:
+                st.session_state.ik_toast = None
+                st.rerun()
