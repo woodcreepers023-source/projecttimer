@@ -482,12 +482,14 @@ elif st.session_state.page == "login":
 
 # ------------------- MANAGE PAGE -------------------
 elif st.session_state.page == "manage":
+
     if not st.session_state.auth:
         st.warning("You must login first.")
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        # ORDER: Boss Tracker (1) | InstaKill (2) | Manage (3) | History (4) | Logout (5)
+
+        # Top Navigation
         top1, top2, top3, top4, top5, top6 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2, 2.0])
 
         with top1:
@@ -512,13 +514,18 @@ elif st.session_state.page == "manage":
 
         st.subheader("🛠️ Edit Boss Timers (Edit Last Time, Next auto-updates)")
 
+        # Initialize toast state
+        st.session_state.setdefault("manage_toast", None)
+
         for i, timer in enumerate(timers):
             with st.expander(f"Edit {timer.name}", expanded=False):
+
                 new_date = st.date_input(
                     f"{timer.name} Last Date",
                     value=timer.last_time.date(),
                     key=f"{timer.name}_last_date",
                 )
+
                 new_time = st.time_input(
                     f"{timer.name} Last Time",
                     value=timer.last_time.time(),
@@ -526,40 +533,51 @@ elif st.session_state.page == "manage":
                     step=60,
                 )
 
+                # SAVE BUTTON
                 if st.button(f"Save {timer.name}", key=f"save_{timer.name}"):
+
                     old_time_str = timer.last_time.strftime("%Y-%m-%d %I:%M %p")
 
                     updated_last_time = datetime.combine(new_date, new_time).replace(tzinfo=MANILA)
                     updated_next_time = updated_last_time + timedelta(seconds=timer.interval_seconds)
 
+                    # Update memory
                     st.session_state.timers[i].last_time = updated_last_time
                     st.session_state.timers[i].next_time = updated_next_time
 
+                    # Save JSON immediately
                     save_boss_data([
                         (t.name, t.interval_minutes, t.last_time.strftime("%Y-%m-%d %I:%M %p"))
                         for t in st.session_state.timers
                     ])
 
+                    # Log history
                     log_edit(timer.name, old_time_str, updated_last_time.strftime("%Y-%m-%d %I:%M %p"))
 
-                    # ✅ Auto-disappear toast (2.5s)
+                    # Store toast data
                     st.session_state.manage_toast = {
+                        "boss": timer.name,
                         "msg": f"✅ {timer.name} updated! Next: {updated_next_time.strftime('%Y-%m-%d %I:%M %p')}",
                         "ts": now_manila(),
                     }
+
                     st.rerun()
 
-        # ✅ Toast display + auto clear (no freeze)
-        if st.session_state.manage_toast:
-            toast = st.session_state.manage_toast
-            age = (now_manila() - toast["ts"]).total_seconds()
+                # SHOW TOAST INSIDE SAME EXPANDER
+                toast = st.session_state.get("manage_toast")
 
-            st.success(toast["msg"])
-            st_autorefresh(interval=500, key="manage_refresh")
+                if toast and toast["boss"] == timer.name:
 
-            if age >= 2.5:
-                st.session_state.manage_toast = None
-                st.rerun()
+                    age = (now_manila() - toast["ts"]).total_seconds()
+
+                    st.success(toast["msg"])
+
+                    # small refresh loop to auto-hide
+                    st_autorefresh(interval=500, key=f"manage_refresh_{timer.name}")
+
+                    if age >= 2.5:
+                        st.session_state.manage_toast = None
+                        st.rerun()
 
 # ------------------- HISTORY PAGE -------------------
 elif st.session_state.page == "history":
@@ -766,3 +784,4 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
+
