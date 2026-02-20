@@ -20,7 +20,6 @@ WARNING_WINDOW_SECONDS = 5 * 60  # 5 minutes
 
 # ------------------- Discord -------------------
 def send_discord_message(message: str) -> bool:
-    """Send a message to Discord via webhook. Returns True if sent."""
     if not DISCORD_WEBHOOK_URL:
         return False
     try:
@@ -81,7 +80,7 @@ def save_boss_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
-# ------------------- Edit History (NO DISCORD) -------------------
+# ------------------- Edit History -------------------
 def log_edit(boss_name: str, old_time: str, new_time: str):
     history = []
     if HISTORY_FILE.exists():
@@ -107,7 +106,6 @@ class TimerEntry:
         self.name = name
         self.interval_minutes = int(interval_minutes)
         self.interval_seconds = self.interval_minutes * 60
-
         self.last_time = datetime.strptime(last_time_str, "%Y-%m-%d %I:%M %p").replace(tzinfo=MANILA)
         self.next_time = self.last_time + timedelta(seconds=self.interval_seconds)
 
@@ -120,7 +118,6 @@ class TimerEntry:
     def countdown(self) -> timedelta:
         return self.next_time - now_manila()
 
-# ------------------- Build Timers -------------------
 def build_timers():
     return [TimerEntry(*row) for row in load_boss_data()]
 
@@ -202,7 +199,7 @@ def send_5min_warnings(field_timers):
     if len(st.session_state.warn_sent) > 600:
         st.session_state.warn_sent = dict(list(st.session_state.warn_sent.items())[-500:])
 
-# ------------------- Fancy Next Boss Banner -------------------
+# ------------------- Banner -------------------
 def next_boss_banner_combined(field_timers):
     if not field_timers:
         st.warning("No timers loaded.")
@@ -316,7 +313,6 @@ def display_boss_table_sorted_newstyle(timers_list):
             color = "orange"
         else:
             color = "green"
-
         countdown_cells.append(f"<span style='color:{color}'>{format_timedelta(t.countdown())}</span>")
         instakill_cells.append("<span class='skull-icon' title='InstaKill'>💀</span>")
 
@@ -338,7 +334,10 @@ def display_boss_table_sorted_newstyle(timers_list):
     <style>
     table th { text-align: center !important; vertical-align: middle !important; }
     table td:last-child, table th:last-child { text-align: center; vertical-align: middle; }
-    .skull-icon{ cursor: default; display: inline-block; padding: 2px 6px; border-radius: 6px; line-height: 1.2; transition: background-color .15s ease; }
+    .skull-icon{
+        cursor: default; display: inline-block; padding: 2px 6px;
+        border-radius: 6px; line-height: 1.2; transition: background-color .15s ease;
+    }
     .skull-icon:hover{ background-color: red; }
     </style>
     """, unsafe_allow_html=True)
@@ -349,7 +348,6 @@ def display_boss_table_sorted_newstyle(timers_list):
 def display_weekly_boss_table_newstyle():
     now = now_manila()
     upcoming = []
-
     for boss, times in weekly_boss_data:
         for sched in times:
             spawn_dt = get_next_weekly_spawn(sched)
@@ -367,13 +365,36 @@ def display_weekly_boss_table_newstyle():
             for row in upcoming_sorted
         ],
     }
-
     df = pd.DataFrame(data)
     st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 # ------------------- Streamlit Setup -------------------
 st.set_page_config(page_title="Lord9 Santiago 7 Boss Timer", layout="wide")
 st.title("🛡️ Lord9 Santiago 7 Boss Timer")
+
+# ------------------- GLOBAL UNIFORM BUTTON STYLE -------------------
+st.markdown("""
+<style>
+/* Make ALL buttons uniform */
+div.stButton > button{
+    width: 100% !important;
+    border-radius: 12px !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-weight: 600 !important;
+    padding: 0.6rem 0.85rem !important;
+    box-shadow: none !important;
+    transition: background-color .12s ease, transform .08s ease;
+}
+div.stButton > button:hover{
+    background: #e2e8f0 !important;
+}
+div.stButton > button:active{
+    transform: translateY(1px);
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ------------------- Session defaults -------------------
 st.session_state.setdefault("auth", False)
@@ -421,6 +442,7 @@ st.divider()
 # ------------------- WORLD PAGE CONTENT -------------------
 if st.session_state.page == "world":
     st.subheader("🗡️ Field Boss Spawns (Sorted by Next Spawn)")
+
     col1, col2 = st.columns([2, 1])
     with col1:
         display_boss_table_sorted_newstyle(timers)
@@ -462,8 +484,8 @@ elif st.session_state.page == "manage":
         top1, top2, top3, top4, top5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
 
         with top1:
-            if st.button("⏱️ Boss Tracker", use_container_width=True):
-                goto("world")
+            if st.button("🛠️ Manage", use_container_width=True):
+                goto("manage")
         with top2:
             if st.button("📜 History", use_container_width=True):
                 goto("history")
@@ -471,12 +493,13 @@ elif st.session_state.page == "manage":
             if st.button("💀 InstaKill", use_container_width=True):
                 goto("instakill")
         with top4:
+            if st.button("⏱️ Boss Tracker", use_container_width=True):
+                goto("world")
+        with top5:
             if st.button("🚪 Logout", use_container_width=True):
                 st.session_state.auth = False
                 st.session_state.username = ""
                 goto("world")
-        with top5:
-            st.success(f"✅ Admin: {st.session_state.username}")
 
         st.subheader("🛠️ Edit Boss Timers (Edit Last Time, Next auto-updates)")
 
@@ -509,17 +532,16 @@ elif st.session_state.page == "manage":
                     ])
 
                     log_edit(timer.name, old_time_str, updated_last_time.strftime("%Y-%m-%d %I:%M %p"))
-
                     st.success(f"✅ {timer.name} updated! Next: {updated_next_time.strftime('%Y-%m-%d %I:%M %p')}")
 
-# ------------------- HISTORY PAGE (FIXED: add InstaKill button) -------------------
+# ------------------- HISTORY PAGE -------------------
 elif st.session_state.page == "history":
     if not st.session_state.auth:
         st.warning("You must login first.")
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        t1, t2, t3, t4 = st.columns([1.2, 1.2, 1.2, 3.4])
+        t1, t2, t3, t4, t5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
 
         with t1:
             if st.button("🛠️ Manage", use_container_width=True):
@@ -531,7 +553,12 @@ elif st.session_state.page == "history":
             if st.button("⏱️ Boss Tracker", use_container_width=True):
                 goto("world")
         with t4:
-            st.success(f"✅ Admin: {st.session_state.username}")
+            if st.button("🚪 Logout", use_container_width=True):
+                st.session_state.auth = False
+                st.session_state.username = ""
+                goto("world")
+        with t5:
+            st.success(f"Admin: {st.session_state.username}")
 
         st.subheader("📜 Edit History")
 
@@ -547,45 +574,37 @@ elif st.session_state.page == "history":
         else:
             st.info("No edit history yet.")
 
-# ------------------- INSTAKILL PAGE -------------------
+# ------------------- INSTAKILL PAGE (WHITE MINIMAL) -------------------
 elif st.session_state.page == "instakill":
-
     if not st.session_state.auth:
         st.warning("You must login first.")
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-
-        # -------- TOP NAV --------
         a1, a2, a3, a4, a5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
 
         with a1:
             if st.button("🛠️ Manage", use_container_width=True):
                 goto("manage")
-
         with a2:
             if st.button("📜 History", use_container_width=True):
                 goto("history")
-
         with a3:
             if st.button("⏱️ Boss Tracker", use_container_width=True):
                 goto("world")
-
         with a4:
             if st.button("🚪 Logout", use_container_width=True):
                 st.session_state.auth = False
                 st.session_state.username = ""
                 goto("world")
-
         with a5:
             st.success(f"Admin: {st.session_state.username}")
 
         st.subheader("💀 InstaKill")
 
-        # -------- Toast state --------
         st.session_state.setdefault("ik_toast", None)
 
-        # -------- WHITE CLEAN STYLE --------
+        # White card styling only (buttons already uniform globally)
         st.markdown("""
         <style>
         .ik-card{
@@ -596,7 +615,6 @@ elif st.session_state.page == "instakill":
           text-align: center;
           margin-bottom: 8px;
         }
-
         .ik-name{
           font-size: 14px;
           font-weight: 700;
@@ -604,25 +622,9 @@ elif st.session_state.page == "instakill":
           color: #111827;
           text-transform: uppercase;
         }
-
-        div.stButton > button{
-          width: 100%;
-          border-radius: 8px !important;
-          border: 1px solid #d1d5db !important;
-          background: #f9fafb !important;
-          color: #111827 !important;
-          font-weight: 600 !important;
-          padding: 0.5rem 0.7rem !important;
-          box-shadow: none !important;
-        }
-
-        div.stButton > button:hover{
-          background: #f3f4f6 !important;
-        }
         </style>
         """, unsafe_allow_html=True)
 
-        # -------- GRID --------
         CARDS_PER_ROW = 8
         timers_sorted = sorted(timers, key=lambda x: x.name.lower())
 
@@ -638,7 +640,6 @@ elif st.session_state.page == "instakill":
 
                     t = row[j]
 
-                    # Card
                     st.markdown(
                         f"""
                         <div class="ik-card">
@@ -648,49 +649,37 @@ elif st.session_state.page == "instakill":
                         unsafe_allow_html=True
                     )
 
-                    # Button
                     if st.button("Killed Now", key=f"ik_{t.name}", use_container_width=True):
-
                         old_time_str = t.last_time.strftime("%Y-%m-%d %I:%M %p")
 
                         updated_last = now_manila()
                         updated_next = updated_last + timedelta(seconds=t.interval_seconds)
 
-                        # update timer object
                         for idx, obj in enumerate(st.session_state.timers):
                             if obj.name == t.name:
                                 st.session_state.timers[idx].last_time = updated_last
                                 st.session_state.timers[idx].next_time = updated_next
                                 break
 
-                        # save JSON
                         save_boss_data([
                             (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
                             for x in st.session_state.timers
                         ])
 
-                        # log history
-                        log_edit(
-                            t.name,
-                            old_time_str,
-                            updated_last.strftime("%Y-%m-%d %I:%M %p")
-                        )
+                        log_edit(t.name, old_time_str, updated_last.strftime("%Y-%m-%d %I:%M %p"))
 
-                        # show toast
                         st.session_state.ik_toast = {
-                            "msg": f"{t.name} updated! Next: {updated_next.strftime('%Y-%m-%d %I:%M %p')}",
+                            "msg": f"✅ {t.name} updated! Next: {updated_next.strftime('%Y-%m-%d %I:%M %p')}",
                             "ts": now_manila(),
                         }
-
                         st.rerun()
 
-        # -------- Toast (2.5 sec) --------
+        # toast bottom (2.5 sec)
         if st.session_state.ik_toast:
             toast = st.session_state.ik_toast
             age = (now_manila() - toast["ts"]).total_seconds()
 
             st.success(toast["msg"])
-
             st_autorefresh(interval=500, key="ik_refresh")
 
             if age >= 2.5:
