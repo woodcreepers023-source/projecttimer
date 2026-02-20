@@ -303,7 +303,6 @@ def display_boss_table_sorted_newstyle(timers_list):
     timers_sorted = sorted(timers_list, key=lambda t: t.next_time)
 
     countdown_cells = []
-
     for t in timers_sorted:
         secs = t.countdown().total_seconds()
         if secs <= 60:
@@ -327,12 +326,12 @@ def display_boss_table_sorted_newstyle(timers_list):
 
     st.markdown("""
     <style>
-    table th { 
-        text-align: center !important; 
-        vertical-align: middle !important; 
+    table th {
+        text-align: center !important;
+        vertical-align: middle !important;
     }
-    table td { 
-        vertical-align: middle !important; 
+    table td {
+        vertical-align: middle !important;
     }
 
     /* Center columns 2 to 6 (everything except Boss Name) */
@@ -404,6 +403,9 @@ div.stButton > button:active{
 st.session_state.setdefault("auth", False)
 st.session_state.setdefault("username", "")
 st.session_state.setdefault("page", "world")  # world | login | manage | history | instakill
+
+# ✅ auto-disappearing toast for Manage page
+st.session_state.setdefault("manage_toast", None)
 
 def goto(page_name: str):
     st.session_state.page = page_name
@@ -539,7 +541,25 @@ elif st.session_state.page == "manage":
                     ])
 
                     log_edit(timer.name, old_time_str, updated_last_time.strftime("%Y-%m-%d %I:%M %p"))
-                    st.success(f"✅ {timer.name} updated! Next: {updated_next_time.strftime('%Y-%m-%d %I:%M %p')}")
+
+                    # ✅ Auto-disappear toast (2.5s)
+                    st.session_state.manage_toast = {
+                        "msg": f"✅ {timer.name} updated! Next: {updated_next_time.strftime('%Y-%m-%d %I:%M %p')}",
+                        "ts": now_manila(),
+                    }
+                    st.rerun()
+
+        # ✅ Toast display + auto clear (no freeze)
+        if st.session_state.manage_toast:
+            toast = st.session_state.manage_toast
+            age = (now_manila() - toast["ts"]).total_seconds()
+
+            st.success(toast["msg"])
+            st_autorefresh(interval=500, key="manage_refresh")
+
+            if age >= 2.5:
+                st.session_state.manage_toast = None
+                st.rerun()
 
 # ------------------- HISTORY PAGE -------------------
 elif st.session_state.page == "history":
