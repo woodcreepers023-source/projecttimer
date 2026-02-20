@@ -1,4 +1,3 @@
-import os
 import streamlit as st
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -14,14 +13,11 @@ MANILA = ZoneInfo("Asia/Manila")
 DATA_FILE = Path("boss_timers.json")
 HISTORY_FILE = Path("boss_history.json")
 
-# ✅ Put your webhook here (do NOT share it)
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1474182220599267451/4vFg3aIoCVnz631Nnc-zFhG38uBaePaBS3OsiDum2Ss4MGvoxGrxyml8JO6IipvjsT93"
-
-# ✅ Role mention (Discord role ID)
-ROLE_ID = "1447357096608661694"
-ROLE_MENTION = f"<@&{ROLE_ID}>" if ROLE_ID else ""
-
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "bestgame")
+# ✅ Put these in .streamlit/secrets.toml instead of hardcoding
+# DISCORD_WEBHOOK_URL="..."  (REDACTED)
+# ADMIN_PASSWORD="..."       (optional to keep here, but better in secrets too)
+DISCORD_WEBHOOK_URL = st.secrets.get("DISCORD_WEBHOOK_URL", "")
+ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "bestgame")
 
 WARNING_WINDOW_SECONDS = 5 * 60  # 5 minutes
 
@@ -30,15 +26,8 @@ def send_discord_message(message: str) -> bool:
     """Send a message to Discord via webhook. Returns True if sent."""
     if not DISCORD_WEBHOOK_URL:
         return False
-
-    payload = {
-        "content": message,
-        # ✅ ensure role mention works from webhook
-        "allowed_mentions": {"roles": [ROLE_ID]} if ROLE_ID else {"parse": []},
-    }
-
     try:
-        r = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
+        r = requests.post(DISCORD_WEBHOOK_URL, json={"content": message}, timeout=10)
         return 200 <= r.status_code < 300
     except Exception:
         return False
@@ -121,6 +110,7 @@ class TimerEntry:
         self.name = name
         self.interval_minutes = int(interval_minutes)
         self.interval_seconds = self.interval_minutes * 60
+
         self.last_time = datetime.strptime(last_time_str, "%Y-%m-%d %I:%M %p").replace(tzinfo=MANILA)
         self.next_time = self.last_time + timedelta(seconds=self.interval_seconds)
 
@@ -182,20 +172,10 @@ def _warn_key(source: str, boss_name: str, spawn_dt: datetime) -> str:
 def send_5min_warnings(field_timers):
     """
     Sends ONE warning per boss per spawn when remaining time is within 5 minutes.
-    Runs while the app reruns (world page open).
+    Only runs while the app reruns (world page open).
     """
     st.session_state.setdefault("warn_sent", {})
     now = now_manila()
-
-    def build_msg(name: str, spawn_dt: datetime) -> str:
-        # ✅ role ping included for BOTH field & weekly
-        mention_line = f"\n{ROLE_MENTION}" if ROLE_MENTION else ""
-        return (
-            f"⏳ **5-minute warning!**\n"
-            f"**{name}** spawns at **{spawn_dt.strftime('%I:%M %p')}** (Manila)\n"
-            f"Time left: `{format_timedelta(spawn_dt - now)}`"
-            f"{mention_line}"
-        )
 
     # Field bosses
     for t in field_timers:
@@ -204,7 +184,12 @@ def send_5min_warnings(field_timers):
         if 0 < remaining <= WARNING_WINDOW_SECONDS:
             key = _warn_key("FIELD", t.name, spawn_dt)
             if not st.session_state.warn_sent.get(key, False):
-                if send_discord_message(build_msg(t.name, spawn_dt)):
+                msg = (
+                    f"⏳ **5-minute warning!**\n"
+                    f"**{t.name}** spawns at **{spawn_dt.strftime('%I:%M %p')}** (Manila)\n"
+                    f"Time left: `{format_timedelta(spawn_dt - now)}`"
+                )
+                if send_discord_message(msg):
                     st.session_state.warn_sent[key] = True
 
     # Weekly bosses
@@ -215,7 +200,12 @@ def send_5min_warnings(field_timers):
             if 0 < remaining <= WARNING_WINDOW_SECONDS:
                 key = _warn_key("WEEKLY", boss, spawn_dt)
                 if not st.session_state.warn_sent.get(key, False):
-                    if send_discord_message(build_msg(boss, spawn_dt)):
+                    msg = (
+                        f"⏳ **5-minute warning!**\n"
+                        f"**{boss}** spawns at **{spawn_dt.strftime('%I:%M %p')}** (Manila)\n"
+                        f"Time left: `{format_timedelta(spawn_dt - now)}`"
+                    )
+                    if send_discord_message(msg):
                         st.session_state.warn_sent[key] = True
 
     # prevent unbounded growth
@@ -326,8 +316,11 @@ def display_boss_table_sorted_newstyle(timers_list):
     timers_sorted = sorted(timers_list, key=lambda t: t.next_time)
 
     countdown_cells = []
+    instakill_cells = []
+
     for t in timers_sorted:
         secs = t.countdown().total_seconds()
+
         if secs <= 60:
             color = "red"
         elif secs <= 300:
@@ -335,25 +328,54 @@ def display_boss_table_sorted_newstyle(timers_list):
         else:
             color = "green"
 
-        countdown_cells.append(
-            f"<div style='text-align:center; color:{color};'>{format_timedelta(t.countdown())}</div>"
-        )
+        countdown_cells.append(f"<span style='color:{color}'>{format_timedelta(t.countdown())}</span>")
+
+        # ✅ InstaKill: skull on every row (only shown for admin below)
+        instakill_cells.append("<span class='skull-icon' title='InstaKill'>💀</span>")
 
     data = {
         "Boss Name": [t.name for t in timers_sorted],
-        "Interval (min)": [f"<div style='text-align:center;'>{t.interval_minutes}</div>" for t in timers_sorted],
+        "Interval (min)": [t.interval_minutes for t in timers_sorted],
         "Last Spawn": [t.last_time.strftime("%m-%d-%Y | %H:%M") for t in timers_sorted],
         "Next Spawn Date": [t.next_time.strftime("%b %d, %Y (%a)") for t in timers_sorted],
-        "Next Spawn Time": [f"<div style='text-align:center;'>{t.next_time.strftime('%I:%M %p')}</div>" for t in timers_sorted],
+        "Next Spawn Time": [t.next_time.strftime("%I:%M %p") for t in timers_sorted],
         "Countdown": countdown_cells,
     }
 
+    # ✅ InstaKill column ONLY appears when admin is logged in
+    if st.session_state.get("auth"):
+        data["InstaKill"] = instakill_cells
+
     df = pd.DataFrame(data)
 
+    # ✅ Center ALL column TITLES (headers) + keep InstaKill centered + Hover turns red
     st.markdown("""
     <style>
-    table th { text-align: center !important; vertical-align: middle !important; }
-    table td { vertical-align: middle !important; }
+
+    /* ✅ Center ALL table headers (titles) */
+    table th {
+        text-align: center !important;
+        vertical-align: middle !important;
+    }
+
+    /* ✅ If InstaKill exists, keep last column centered */
+    table td:last-child,
+    table th:last-child {
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .skull-icon{
+        cursor: default;
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 6px;
+        line-height: 1.2;
+        transition: background-color .15s ease;
+    }
+    .skull-icon:hover{
+        background-color: red;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -555,5 +577,3 @@ elif st.session_state.page == "history":
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
-
-
