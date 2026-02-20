@@ -588,92 +588,88 @@ elif st.session_state.page == "instakill":
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        # Top nav
+        # ------------------- Top Navigation -------------------
         a1, a2, a3, a4, a5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
 
         with a1:
             if st.button("🛠️ Manage", use_container_width=True):
                 goto("manage")
+
         with a2:
             if st.button("📜 History", use_container_width=True):
                 goto("history")
+
         with a3:
             if st.button("⏱️ Boss Tracker", use_container_width=True):
                 goto("world")
+
         with a4:
             if st.button("🚪 Logout", use_container_width=True):
                 st.session_state.auth = False
                 st.session_state.username = ""
                 goto("world")
+
         with a5:
             st.success(f"✅ Admin: {st.session_state.username}")
 
         st.subheader("💀 InstaKill")
 
-        # --- Better gold/black design (card + button styling) ---
+        # ------------------- Modern Blue Theme -------------------
         st.markdown("""
         <style>
+
         /* Card */
         .ik-card{
-          background: radial-gradient(120% 120% at 50% 0%, #111827 0%, #050608 55%, #020304 100%);
-          border: 1px solid rgba(245, 158, 11, .55);
-          border-radius: 16px;
+          background: #0f172a;
+          border: 1px solid #1e3a8a;
+          border-radius: 14px;
           padding: 22px 12px;
           text-align: center;
-          box-shadow:
-            0 12px 30px rgba(0,0,0,.65),
-            0 0 0 2px rgba(245,158,11,.08) inset;
           margin-bottom: 10px;
-          position: relative;
-          overflow: hidden;
+          transition: all .2s ease;
         }
 
-        /* Subtle gold glow blob */
-        .ik-card:before{
-          content:"";
-          position:absolute;
-          top:-40px; left:-30px;
-          width:160px; height:160px;
-          background: radial-gradient(circle, rgba(245,158,11,.18), transparent 60%);
-          filter: blur(2px);
+        .ik-card:hover{
+          border-color: #3b82f6;
+          box-shadow: 0 0 14px rgba(59,130,246,.25);
+          transform: translateY(-2px);
         }
 
-        /* Name */
+        /* Boss Name */
         .ik-name{
           font-size: 14px;
-          font-weight: 900;
-          letter-spacing: .22em;
-          color: #fbbf24;
+          font-weight: 800;
+          letter-spacing: .18em;
+          color: #e5e7eb;
           text-transform: uppercase;
         }
 
-        /* Streamlit button -> match theme */
+        /* Button Styling */
         div.stButton > button{
           width: 100%;
-          border-radius: 12px !important;
-          border: 1px solid rgba(245,158,11,.55) !important;
-          background: rgba(2,6,23,.65) !important;
-          color: #fde68a !important;
-          font-weight: 800 !important;
+          background: #1e293b !important;
+          border: 1px solid #3b82f6 !important;
+          color: #e5e7eb !important;
+          border-radius: 10px !important;
+          font-weight: 700 !important;
           letter-spacing: .06em !important;
           padding: 0.6rem 0.8rem !important;
-          transition: transform .08s ease, background-color .12s ease, box-shadow .12s ease;
+          transition: all .15s ease;
         }
+
         div.stButton > button:hover{
-          background: rgba(245,158,11,.12) !important;
-          box-shadow: 0 10px 22px rgba(245,158,11,.12) !important;
-          transform: translateY(-1px);
+          background: #2563eb !important;
+          border-color: #2563eb !important;
+          color: white !important;
+          box-shadow: 0 0 12px rgba(37,99,235,.4);
         }
-        div.stButton > button:active{
-          transform: translateY(0px);
-        }
+
         </style>
         """, unsafe_allow_html=True)
 
-        # Cards per row (change to 6 or 5 if your screen is smaller)
-        CARDS_PER_ROW = 8
+        # ------------------- Grid Layout -------------------
+        CARDS_PER_ROW = 8  # change to 6 if screen is smaller
 
-        # Keep stable ordering
         timers_sorted = sorted(timers, key=lambda x: x.name.lower())
 
         for start in range(0, len(timers_sorted), CARDS_PER_ROW):
@@ -688,7 +684,7 @@ elif st.session_state.page == "instakill":
 
                     t = row[j]
 
-                    # Card: ONLY boss name
+                    # Card (name only)
                     st.markdown(
                         f"""
                         <div class="ik-card">
@@ -698,27 +694,28 @@ elif st.session_state.page == "instakill":
                         unsafe_allow_html=True
                     )
 
-                    # ✅ ONLY BUTTON: sets LAST TIME to NOW and saves instantly
+                    # Killed Now Button
                     if st.button("💀 Killed Now", key=f"ik_killednow_{t.name}", use_container_width=True):
+
                         old_time_str = t.last_time.strftime("%Y-%m-%d %I:%M %p")
 
                         updated_last = now_manila()
                         updated_next = updated_last + timedelta(seconds=t.interval_seconds)
 
-                        # update actual object in session_state
+                        # Update actual timer object
                         for idx, obj in enumerate(st.session_state.timers):
                             if obj.name == t.name:
                                 st.session_state.timers[idx].last_time = updated_last
                                 st.session_state.timers[idx].next_time = updated_next
                                 break
 
-                        # save to JSON
+                        # Save to JSON
                         save_boss_data([
                             (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
                             for x in st.session_state.timers
                         ])
 
-                        # history
+                        # Log edit history
                         log_edit(t.name, old_time_str, updated_last.strftime("%Y-%m-%d %I:%M %p"))
 
                         st.rerun()
