@@ -583,10 +583,12 @@ elif st.session_state.page == "history":
 
 # ------------------- INSTAKILL PAGE -------------------
 elif st.session_state.page == "instakill":
+
     if not st.session_state.auth:
         st.warning("You must login first.")
         if st.button("Go to Login", use_container_width=True):
             goto("login")
+
     else:
         # ------------------- Top Navigation -------------------
         a1, a2, a3, a4, a5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
@@ -614,54 +616,60 @@ elif st.session_state.page == "instakill":
 
         st.subheader("💀 InstaKill")
 
-        # ------------------- Option 1: Clean Dark (Minimal + Pro) -------------------
+        # ------------------- Ultra Minimal Theme -------------------
         st.markdown("""
         <style>
-        .ik-card{
-          background: #111827;
-          border: 1px solid #2d3748;
-          border-radius: 12px;
-          padding: 20px 10px;
-          text-align: center;
-          margin-bottom: 10px;
-          transition: all .15s ease;
-        }
 
-        .ik-card:hover{
-          background: #1f2937;
-          border-color: #4b5563;
-          transform: translateY(-2px);
+        /* -------- CARD -------- */
+        .ik-card{
+            background: #18181b;
+            border: 1px solid #27272a;
+            border-radius: 10px;
+            padding: 18px 10px;
+            text-align: center;
+            margin-bottom: 6px;
         }
 
         .ik-name{
-          font-size: 14px;
-          font-weight: 800;
-          letter-spacing: .15em;
-          color: #f9fafb;
-          text-transform: uppercase;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: .12em;
+            color: #fafafa;
+            text-transform: uppercase;
         }
 
-        div.stButton > button{
-          width: 100%;
-          background: #1f2937 !important;
-          border: 1px solid #374151 !important;
-          color: #f9fafb !important;
-          border-radius: 10px !important;
-          font-weight: 700 !important;
-          letter-spacing: .06em !important;
-          padding: 0.6rem 0.8rem !important;
-          transition: all .12s ease;
+        /* -------- FORCE BUTTON STYLE -------- */
+        div[data-testid="stButton"] > button,
+        div[data-testid="stButton"] button {
+            width: 100% !important;
+            background: #27272a !important;
+            border: 1px solid #3f3f46 !important;
+            color: #fafafa !important;
+            border-radius: 8px !important;
+            font-weight: 700 !important;
+            letter-spacing: .06em !important;
+            padding: 0.55rem 0.8rem !important;
+            box-shadow: none !important;
         }
 
-        div.stButton > button:hover{
-          background: #374151 !important;
-          border-color: #4b5563 !important;
+        div[data-testid="stButton"] > button:hover,
+        div[data-testid="stButton"] button:hover{
+            background: #3f3f46 !important;
+            border-color: #52525b !important;
+            color: #ffffff !important;
         }
+
+        /* spacing between card and button */
+        div[data-testid="stButton"]{
+            margin-top: -4px !important;
+            margin-bottom: 12px !important;
+        }
+
         </style>
         """, unsafe_allow_html=True)
 
         # ------------------- Grid Layout -------------------
-        CARDS_PER_ROW = 8  # change to 6 if your screen is smaller
+        CARDS_PER_ROW = 8  # change to 6 if screen is smaller
 
         timers_sorted = sorted(timers, key=lambda x: x.name.lower())
 
@@ -671,24 +679,28 @@ elif st.session_state.page == "instakill":
 
             for j in range(CARDS_PER_ROW):
                 with cols[j]:
+
                     if j >= len(row):
                         st.empty()
                         continue
 
                     t = row[j]
 
-                    # Card (name only)
+                    # Card (NAME ONLY)
                     st.markdown(
                         f"""
                         <div class="ik-card">
-                          <div class="ik-name">{t.name}</div>
+                            <div class="ik-name">{t.name}</div>
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
 
-                    # ✅ Killed Now = last_time set to NOW (Manila) and saved
-                    if st.button("💀 Killed Now", key=f"ik_killednow_{t.name}", use_container_width=True):
+                    # KILLED NOW BUTTON
+                    if st.button("💀 Killed Now",
+                                 key=f"ik_killednow_{t.name}",
+                                 use_container_width=True):
+
                         old_time_str = t.last_time.strftime("%Y-%m-%d %I:%M %p")
 
                         updated_last = now_manila()
@@ -703,11 +715,15 @@ elif st.session_state.page == "instakill":
 
                         # Save to JSON
                         save_boss_data([
-                            (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
+                            (x.name,
+                             x.interval_minutes,
+                             x.last_time.strftime("%Y-%m-%d %I:%M %p"))
                             for x in st.session_state.timers
                         ])
 
-                        # Log edit history
-                        log_edit(t.name, old_time_str, updated_last.strftime("%Y-%m-%d %I:%M %p"))
+                        # Log history
+                        log_edit(t.name,
+                                 old_time_str,
+                                 updated_last.strftime("%Y-%m-%d %I:%M %p"))
 
                         st.rerun()
