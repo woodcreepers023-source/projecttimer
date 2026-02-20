@@ -547,87 +547,82 @@ elif st.session_state.page == "history":
         else:
             st.info("No edit history yet.")
 
-# ------------------- INSTAKILL PAGE (FIXED: toast 2–3 sec) -------------------
+# ------------------- INSTAKILL PAGE -------------------
 elif st.session_state.page == "instakill":
+
     if not st.session_state.auth:
         st.warning("You must login first.")
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
+
+        # -------- TOP NAV --------
         a1, a2, a3, a4, a5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
 
         with a1:
             if st.button("🛠️ Manage", use_container_width=True):
                 goto("manage")
+
         with a2:
             if st.button("📜 History", use_container_width=True):
                 goto("history")
+
         with a3:
             if st.button("⏱️ Boss Tracker", use_container_width=True):
                 goto("world")
+
         with a4:
             if st.button("🚪 Logout", use_container_width=True):
                 st.session_state.auth = False
                 st.session_state.username = ""
                 goto("world")
+
         with a5:
-            st.success(f"✅ Admin: {st.session_state.username}")
+            st.success(f"Admin: {st.session_state.username}")
 
         st.subheader("💀 InstaKill")
 
-        # ---- toast state ----
+        # -------- Toast state --------
         st.session_state.setdefault("ik_toast", None)
 
-        # ---- gold/black styling (your current style) ----
+        # -------- CLEAN FLAT STYLE --------
         st.markdown("""
         <style>
         .ik-card{
-          background: radial-gradient(120% 120% at 50% 0%, #111827 0%, #050608 55%, #020304 100%);
-          border: 1px solid rgba(245, 158, 11, .55);
-          border-radius: 16px;
-          padding: 22px 12px;
+          background: #1f2937;
+          border: 1px solid #374151;
+          border-radius: 14px;
+          padding: 20px 10px;
           text-align: center;
-          box-shadow:
-            0 12px 30px rgba(0,0,0,.65),
-            0 0 0 2px rgba(245,158,11,.08) inset;
           margin-bottom: 10px;
-          position: relative;
-          overflow: hidden;
         }
-        .ik-card:before{
-          content:"";
-          position:absolute;
-          top:-40px; left:-30px;
-          width:160px; height:160px;
-          background: radial-gradient(circle, rgba(245,158,11,.18), transparent 60%);
-          filter: blur(2px);
-        }
+
         .ik-name{
           font-size: 14px;
-          font-weight: 900;
-          letter-spacing: .22em;
-          color: #fbbf24;
+          font-weight: 800;
+          letter-spacing: .18em;
+          color: #e5e7eb;
           text-transform: uppercase;
         }
+
         div.stButton > button{
           width: 100%;
           border-radius: 12px !important;
-          border: 1px solid rgba(245,158,11,.55) !important;
-          background: rgba(2,6,23,.65) !important;
-          color: #fde68a !important;
-          font-weight: 800 !important;
-          letter-spacing: .06em !important;
+          border: 1px solid #4b5563 !important;
+          background: #111827 !important;
+          color: #e5e7eb !important;
+          font-weight: 700 !important;
           padding: 0.6rem 0.8rem !important;
-          transition: transform .08s ease, background-color .12s ease, box-shadow .12s ease;
+          box-shadow: none !important;
         }
+
         div.stButton > button:hover{
-          background: rgba(245,158,11,.12) !important;
-          box-shadow: 0 10px 22px rgba(245,158,11,.12) !important;
-          transform: translateY(-1px);
+          background: #0b1220 !important;
         }
         </style>
         """, unsafe_allow_html=True)
 
+        # -------- CARDS GRID --------
         CARDS_PER_ROW = 8
         timers_sorted = sorted(timers, key=lambda x: x.name.lower())
 
@@ -643,6 +638,7 @@ elif st.session_state.page == "instakill":
 
                     t = row[j]
 
+                    # Card
                     st.markdown(
                         f"""
                         <div class="ik-card">
@@ -652,43 +648,51 @@ elif st.session_state.page == "instakill":
                         unsafe_allow_html=True
                     )
 
-                    if st.button("💀 Killed Now", key=f"ik_killednow_{t.name}", use_container_width=True):
+                    # Button
+                    if st.button("💀 Killed Now", key=f"ik_{t.name}", use_container_width=True):
+
                         old_time_str = t.last_time.strftime("%Y-%m-%d %I:%M %p")
 
                         updated_last = now_manila()
                         updated_next = updated_last + timedelta(seconds=t.interval_seconds)
 
+                        # update object
                         for idx, obj in enumerate(st.session_state.timers):
                             if obj.name == t.name:
                                 st.session_state.timers[idx].last_time = updated_last
                                 st.session_state.timers[idx].next_time = updated_next
                                 break
 
+                        # save
                         save_boss_data([
                             (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
                             for x in st.session_state.timers
                         ])
 
-                        log_edit(t.name, old_time_str, updated_last.strftime("%Y-%m-%d %I:%M %p"))
+                        # history
+                        log_edit(
+                            t.name,
+                            old_time_str,
+                            updated_last.strftime("%Y-%m-%d %I:%M %p")
+                        )
 
-                        # ✅ Set toast and rerun (toast will show ~2.5 seconds)
+                        # show toast
                         st.session_state.ik_toast = {
-                            "msg": f"✅ {t.name} updated! Next: {updated_next.strftime('%Y-%m-%d %I:%M %p')}",
+                            "msg": f"{t.name} updated! Next: {updated_next.strftime('%Y-%m-%d %I:%M %p')}",
                             "ts": now_manila(),
                         }
+
                         st.rerun()
 
-        # ---- Toast shown at bottom (like your screenshot), auto-clears ----
+        # -------- TOAST DISPLAY (2.5 seconds) --------
         if st.session_state.ik_toast:
             toast = st.session_state.ik_toast
             age = (now_manila() - toast["ts"]).total_seconds()
 
             st.success(toast["msg"])
 
-            # refresh while toast is visible
-            st_autorefresh(interval=500, key="ik_toast_refresh")
+            st_autorefresh(interval=500, key="ik_refresh")
 
-            # clear after ~2.5 seconds
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
