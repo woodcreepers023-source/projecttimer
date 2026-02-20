@@ -368,42 +368,100 @@ def display_weekly_boss_table_newstyle():
     df = pd.DataFrame(data)
     st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
+# ------------------- NAVBAR (PILL STYLE LIKE SCREENSHOT) -------------------
+def inject_nav_css():
+    st.markdown("""
+    <style>
+      .block-container { max-width: 1400px; padding-top: 1.2rem; }
+
+      .nav-wrap{
+        border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 16px;
+        padding: 14px 14px;
+        background: rgba(255,255,255,0.08);
+        margin-top: 10px;
+        margin-bottom: 10px;
+      }
+
+      /* Pill buttons */
+      .nav-wrap div.stButton > button{
+        width: 100% !important;
+        height: 42px !important;
+        border-radius: 999px !important;
+        border: 1px solid rgba(0,0,0,0.10) !important;
+        background: rgba(255,255,255,0.14) !important;
+        color: rgba(0,0,0,0.78) !important;
+        font-weight: 650 !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        gap: 8px !important;
+        padding: 0 14px !important;
+        box-shadow: none !important;
+        transition: background-color .12s ease, transform .08s ease;
+      }
+      .nav-wrap div.stButton > button:hover{
+        border-color: rgba(0,0,0,0.18) !important;
+        background: rgba(255,255,255,0.22) !important;
+      }
+      .nav-wrap div.stButton > button:active{
+        transform: translateY(1px);
+      }
+
+      /* Active button wrapper */
+      .nav-active .nav-wrap div.stButton > button,
+      .nav-active div.stButton > button{
+        border-color: rgba(20,120,255,0.45) !important;
+        box-shadow: 0 0 0 3px rgba(20,120,255,0.12) !important;
+        background: rgba(20,120,255,0.10) !important;
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
+def goto(page_name: str):
+    st.session_state.page = page_name
+    st.rerun()
+
+def navbar():
+    inject_nav_css()
+
+    st.markdown('<div class="nav-wrap">', unsafe_allow_html=True)
+    c1, c2, c3, c4, c5 = st.columns(5, gap="small")
+
+    def nav_btn(col, label, icon, target_page, key):
+        active = (st.session_state.page == target_page)
+        if active:
+            col.markdown('<div class="nav-active">', unsafe_allow_html=True)
+
+        clicked = col.button(f"{icon} {label}", key=key, use_container_width=True)
+
+        if active:
+            col.markdown('</div>', unsafe_allow_html=True)
+
+        if clicked:
+            if target_page == "logout":
+                st.session_state.auth = False
+                st.session_state.username = ""
+                goto("world")
+            else:
+                goto(target_page)
+
+    nav_btn(c1, "Boss Tracker", "🧭", "world", "nav_world")
+    nav_btn(c2, "InstaKill",   "☠️", "instakill", "nav_ik")
+    nav_btn(c3, "Manage",      "🛠️", "manage", "nav_manage")
+    nav_btn(c4, "History",     "📜", "history", "nav_history")
+    nav_btn(c5, "Logout",      "🚪", "logout", "nav_logout")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
 # ------------------- Streamlit Setup -------------------
 st.set_page_config(page_title="Lord9 Santiago 7 Boss Timer", layout="wide")
 st.title("🛡️ Lord9 Santiago 7 Boss Timer")
-
-# ------------------- GLOBAL UNIFORM BUTTON STYLE -------------------
-st.markdown("""
-<style>
-/* Make ALL buttons uniform */
-div.stButton > button{
-    width: 100% !important;
-    border-radius: 12px !important;
-    border: 1px solid #cbd5e1 !important;
-    background: #f1f5f9 !important;
-    color: #0f172a !important;
-    font-weight: 600 !important;
-    padding: 0.6rem 0.85rem !important;
-    box-shadow: none !important;
-    transition: background-color .12s ease, transform .08s ease;
-}
-div.stButton > button:hover{
-    background: #e2e8f0 !important;
-}
-div.stButton > button:active{
-    transform: translateY(1px);
-}
-</style>
-""", unsafe_allow_html=True)
 
 # ------------------- Session defaults -------------------
 st.session_state.setdefault("auth", False)
 st.session_state.setdefault("username", "")
 st.session_state.setdefault("page", "world")  # world | login | manage | history | instakill
-
-def goto(page_name: str):
-    st.session_state.page = page_name
-    st.rerun()
 
 # ------------------- Auto-refresh ONLY on World page -------------------
 if st.session_state.page == "world":
@@ -420,29 +478,25 @@ for t in timers:
 if st.session_state.page == "world":
     send_5min_warnings(timers)
 
-# ------------------- WORLD PAGE HEADER -------------------
-if st.session_state.page == "world":
-    left_btn, mid_banner, right_space = st.columns([2, 6, 2])
+# ------------------- HEADER: banner always, nav only when admin -------------------
+next_boss_banner_combined(timers)
 
-    with left_btn:
-        if not st.session_state.auth:
-            if st.button("🔐 Admin Login"):
-                goto("login")
-        else:
-            if st.button("🛠️ Manage / Edit"):
-                goto("manage")
-
-    with mid_banner:
-        next_boss_banner_combined(timers)
-else:
-    next_boss_banner_combined(timers)
+# navbar like screenshot (only show when logged in)
+if st.session_state.auth:
+    navbar()
 
 st.divider()
 
-# ------------------- WORLD PAGE CONTENT -------------------
+# ------------------- WORLD PAGE -------------------
 if st.session_state.page == "world":
-    st.subheader("🗡️ Field Boss Spawns (Sorted by Next Spawn)")
+    # if not logged in, show login button (simple)
+    top = st.columns([1, 5, 1])
+    with top[0]:
+        if not st.session_state.auth:
+            if st.button("🔐 Admin Login", use_container_width=True):
+                goto("login")
 
+    st.subheader("🗡️ Field Boss Spawns (Sorted by Next Spawn)")
     col1, col2 = st.columns([2, 1])
     with col1:
         display_boss_table_sorted_newstyle(timers)
@@ -481,26 +535,6 @@ elif st.session_state.page == "manage":
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        top1, top2, top3, top4, top5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
-
-        with top1:
-            if st.button("🛠️ Manage", use_container_width=True):
-                goto("manage")
-        with top2:
-            if st.button("📜 History", use_container_width=True):
-                goto("history")
-        with top3:
-            if st.button("💀 InstaKill", use_container_width=True):
-                goto("instakill")
-        with top4:
-            if st.button("⏱️ Boss Tracker", use_container_width=True):
-                goto("world")
-        with top5:
-            if st.button("🚪 Logout", use_container_width=True):
-                st.session_state.auth = False
-                st.session_state.username = ""
-                goto("world")
-
         st.subheader("🛠️ Edit Boss Timers (Edit Last Time, Next auto-updates)")
 
         for i, timer in enumerate(timers):
@@ -541,25 +575,6 @@ elif st.session_state.page == "history":
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        t1, t2, t3, t4, t5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
-
-        with t1:
-            if st.button("🛠️ Manage", use_container_width=True):
-                goto("manage")
-        with t2:
-            if st.button("💀 InstaKill", use_container_width=True):
-                goto("instakill")
-        with t3:
-            if st.button("⏱️ Boss Tracker", use_container_width=True):
-                goto("world")
-        with t4:
-            if st.button("🚪 Logout", use_container_width=True):
-                st.session_state.auth = False
-                st.session_state.username = ""
-                goto("world")
-        with t5:
-            st.success(f"Admin: {st.session_state.username}")
-
         st.subheader("📜 Edit History")
 
         if HISTORY_FILE.exists():
@@ -574,69 +589,26 @@ elif st.session_state.page == "history":
         else:
             st.info("No edit history yet.")
 
-# ------------------- INSTAKILL PAGE (WHITE, ONE CARD: NAME + BUTTON, CUSTOM ORDER) -------------------
+# ------------------- INSTAKILL PAGE -------------------
 elif st.session_state.page == "instakill":
-
     if not st.session_state.auth:
         st.warning("You must login first.")
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        # -------- TOP NAV --------
-        a1, a2, a3, a4, a5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
-
-        with a1:
-            if st.button("🛠️ Manage", use_container_width=True):
-                goto("manage")
-        with a2:
-            if st.button("📜 History", use_container_width=True):
-                goto("history")
-        with a3:
-            if st.button("⏱️ Boss Tracker", use_container_width=True):
-                goto("world")
-        with a4:
-            if st.button("🚪 Logout", use_container_width=True):
-                st.session_state.auth = False
-                st.session_state.username = ""
-                goto("world")
-        with a5:
-            st.success(f"Admin: {st.session_state.username}")
-
         st.subheader("💀 InstaKill")
 
-        # -------- Toast state --------
         st.session_state.setdefault("ik_toast", None)
 
-        # -------- CUSTOM ORDER (exactly as you requested) --------
         CUSTOM_BOSS_ORDER = [
-            "Venatus",
-            "Viorent",
-            "Ego",
-            "Livera",
-            "Undomiel",
-            "Araneo",
-            "Lady Dalia",
-            "General Aquleus",
-            "Amentis",
-            "Baron Braudmore",
-            "Wannitas",
-            "Metus",
-            "Duplican",
-            "Shuliar",
-            "Gareth",
-            "Titore",
-            "Larba",
-            "Catena",
-            "Secreta",
-            "Ordo",
-            "Asta",
-            "Supore",
+            "Venatus","Viorent","Ego","Livera","Undomiel","Araneo","Lady Dalia","General Aquleus",
+            "Amentis","Baron Braudmore","Wannitas","Metus","Duplican","Shuliar","Gareth","Titore",
+            "Larba","Catena","Secreta","Ordo","Asta","Supore",
         ]
 
         order_index = {name: i for i, name in enumerate(CUSTOM_BOSS_ORDER)}
         timers_sorted = sorted(timers, key=lambda x: order_index.get(x.name, 999))
 
-        # -------- WHITE CARD styling (NAME + BUTTON in ONE box) --------
         st.markdown("""
         <style>
         .ik-card{
@@ -655,14 +627,9 @@ elif st.session_state.page == "instakill":
           text-transform: uppercase;
           padding: 6px 0 10px 0;
         }
-        /* Make the button feel "inside" the card */
-        .ik-card div.stButton > button{
-          margin-top: 6px !important;
-        }
         </style>
         """, unsafe_allow_html=True)
 
-        # -------- GRID --------
         CARDS_PER_ROW = 8
 
         for start in range(0, len(timers_sorted), CARDS_PER_ROW):
@@ -677,7 +644,6 @@ elif st.session_state.page == "instakill":
 
                     t = row[j]
 
-                    # open card
                     st.markdown(
                         f"<div class='ik-card'><div class='ik-name'>{t.name}</div>",
                         unsafe_allow_html=True
@@ -685,7 +651,6 @@ elif st.session_state.page == "instakill":
 
                     clicked = st.button("Killed Now", key=f"ik_{t.name}", use_container_width=True)
 
-                    # close card
                     st.markdown("</div>", unsafe_allow_html=True)
 
                     if clicked:
@@ -694,23 +659,19 @@ elif st.session_state.page == "instakill":
                         updated_last = now_manila()
                         updated_next = updated_last + timedelta(seconds=t.interval_seconds)
 
-                        # update session timers
                         for idx, obj in enumerate(st.session_state.timers):
                             if obj.name == t.name:
                                 st.session_state.timers[idx].last_time = updated_last
                                 st.session_state.timers[idx].next_time = updated_next
                                 break
 
-                        # save to JSON
                         save_boss_data([
                             (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
                             for x in st.session_state.timers
                         ])
 
-                        # log history
                         log_edit(t.name, old_time_str, updated_last.strftime("%Y-%m-%d %I:%M %p"))
 
-                        # toast message (show 2.5s)
                         st.session_state.ik_toast = {
                             "msg": f"✅ {t.name} updated! Next: {updated_next.strftime('%Y-%m-%d %I:%M %p')}",
                             "ts": now_manila(),
@@ -718,14 +679,11 @@ elif st.session_state.page == "instakill":
 
                         st.rerun()
 
-        # -------- TOAST DISPLAY (2.5 seconds) --------
         if st.session_state.ik_toast:
             toast = st.session_state.ik_toast
             age = (now_manila() - toast["ts"]).total_seconds()
 
             st.success(toast["msg"])
-
-            # keep page alive briefly so it disappears automatically
             st_autorefresh(interval=500, key="ik_refresh")
 
             if age >= 2.5:
