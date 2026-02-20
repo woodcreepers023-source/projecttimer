@@ -581,7 +581,7 @@ elif st.session_state.page == "history":
         else:
             st.info("No edit history yet.")
 
-# ------------------- INSTAKILL PAGE (WHITE, ONE CARD: NAME + BUTTON, CUSTOM ORDER) -------------------
+# ------------------- INSTAKILL PAGE -------------------
 elif st.session_state.page == "instakill":
 
     if not st.session_state.auth:
@@ -618,7 +618,7 @@ elif st.session_state.page == "instakill":
         # -------- Toast state --------
         st.session_state.setdefault("ik_toast", None)
 
-        # -------- CUSTOM ORDER (exactly as you requested) --------
+        # -------- CUSTOM ORDER --------
         CUSTOM_BOSS_ORDER = [
             "Venatus",
             "Viorent",
@@ -647,7 +647,7 @@ elif st.session_state.page == "instakill":
         order_index = {name: i for i, name in enumerate(CUSTOM_BOSS_ORDER)}
         timers_sorted = sorted(timers, key=lambda x: order_index.get(x.name, 999))
 
-        # -------- WHITE CARD styling (NAME + BUTTON in ONE box) --------
+        # -------- WHITE CARD --------
         st.markdown("""
         <style>
         .ik-card{
@@ -729,7 +729,7 @@ elif st.session_state.page == "instakill":
 
                         st.rerun()
 
-        # -------- TOAST DISPLAY (2.5 seconds) --------
+        # -------- TOAST DISPLAY --------
         if st.session_state.ik_toast:
             toast = st.session_state.ik_toast
             age = (now_manila() - toast["ts"]).total_seconds()
@@ -742,3 +742,4 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
+
