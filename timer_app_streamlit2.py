@@ -574,13 +574,15 @@ elif st.session_state.page == "history":
         else:
             st.info("No edit history yet.")
 
-# ------------------- INSTAKILL PAGE (WHITE MINIMAL) -------------------
+# ------------------- INSTAKILL PAGE (WHITE, NAME + BUTTON IN ONE CARD) -------------------
 elif st.session_state.page == "instakill":
+
     if not st.session_state.auth:
         st.warning("You must login first.")
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
+        # -------- TOP NAV (uniform buttons via your global button CSS) --------
         a1, a2, a3, a4, a5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
 
         with a1:
@@ -602,29 +604,36 @@ elif st.session_state.page == "instakill":
 
         st.subheader("💀 InstaKill")
 
+        # -------- Toast state --------
         st.session_state.setdefault("ik_toast", None)
 
-        # White card styling only (buttons already uniform globally)
+        # -------- White card styling (NAME + BUTTON in ONE box) --------
         st.markdown("""
         <style>
         .ik-card{
-          background: white;
+          background: #ffffff;
           border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          padding: 18px 10px;
+          border-radius: 14px;
+          padding: 16px 14px 14px 14px;
           text-align: center;
-          margin-bottom: 8px;
+          margin-bottom: 14px;
         }
         .ik-name{
-          font-size: 14px;
-          font-weight: 700;
-          letter-spacing: .15em;
+          font-size: 13px;
+          font-weight: 800;
+          letter-spacing: .18em;
           color: #111827;
           text-transform: uppercase;
+          padding: 6px 0 10px 0;
+        }
+        /* Make the button feel "inside" the card */
+        .ik-card div.stButton > button{
+          margin-top: 6px !important;
         }
         </style>
         """, unsafe_allow_html=True)
 
+        # -------- GRID --------
         CARDS_PER_ROW = 8
         timers_sorted = sorted(timers, key=lambda x: x.name.lower())
 
@@ -640,46 +649,52 @@ elif st.session_state.page == "instakill":
 
                     t = row[j]
 
-                    st.markdown(
-                        f"""
-                        <div class="ik-card">
-                          <div class="ik-name">{t.name}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+                    # open card
+                    st.markdown(f"<div class='ik-card'><div class='ik-name'>{t.name}</div>", unsafe_allow_html=True)
 
-                    if st.button("Killed Now", key=f"ik_{t.name}", use_container_width=True):
+                    clicked = st.button("Killed Now", key=f"ik_{t.name}", use_container_width=True)
+
+                    # close card
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+                    if clicked:
                         old_time_str = t.last_time.strftime("%Y-%m-%d %I:%M %p")
 
                         updated_last = now_manila()
                         updated_next = updated_last + timedelta(seconds=t.interval_seconds)
 
+                        # update session timers
                         for idx, obj in enumerate(st.session_state.timers):
                             if obj.name == t.name:
                                 st.session_state.timers[idx].last_time = updated_last
                                 st.session_state.timers[idx].next_time = updated_next
                                 break
 
+                        # save to JSON
                         save_boss_data([
                             (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
                             for x in st.session_state.timers
                         ])
 
+                        # log history
                         log_edit(t.name, old_time_str, updated_last.strftime("%Y-%m-%d %I:%M %p"))
 
+                        # toast message (show 2.5s)
                         st.session_state.ik_toast = {
                             "msg": f"✅ {t.name} updated! Next: {updated_next.strftime('%Y-%m-%d %I:%M %p')}",
                             "ts": now_manila(),
                         }
+
                         st.rerun()
 
-        # toast bottom (2.5 sec)
+        # -------- TOAST DISPLAY (2.5 seconds) --------
         if st.session_state.ik_toast:
             toast = st.session_state.ik_toast
             age = (now_manila() - toast["ts"]).total_seconds()
 
             st.success(toast["msg"])
+
+            # keep page alive briefly so it disappears automatically
             st_autorefresh(interval=500, key="ik_refresh")
 
             if age >= 2.5:
