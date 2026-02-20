@@ -585,44 +585,44 @@ elif st.session_state.page == "instakill":
         # -------- Toast state --------
         st.session_state.setdefault("ik_toast", None)
 
-        # -------- CLEAN FLAT STYLE --------
+        # -------- WHITE CLEAN STYLE --------
         st.markdown("""
         <style>
         .ik-card{
-          background: #1f2937;
-          border: 1px solid #374151;
-          border-radius: 14px;
-          padding: 20px 10px;
+          background: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          padding: 18px 10px;
           text-align: center;
-          margin-bottom: 10px;
+          margin-bottom: 8px;
         }
 
         .ik-name{
           font-size: 14px;
-          font-weight: 800;
-          letter-spacing: .18em;
-          color: #e5e7eb;
+          font-weight: 700;
+          letter-spacing: .15em;
+          color: #111827;
           text-transform: uppercase;
         }
 
         div.stButton > button{
           width: 100%;
-          border-radius: 12px !important;
-          border: 1px solid #4b5563 !important;
-          background: #111827 !important;
-          color: #e5e7eb !important;
-          font-weight: 700 !important;
-          padding: 0.6rem 0.8rem !important;
+          border-radius: 8px !important;
+          border: 1px solid #d1d5db !important;
+          background: #f9fafb !important;
+          color: #111827 !important;
+          font-weight: 600 !important;
+          padding: 0.5rem 0.7rem !important;
           box-shadow: none !important;
         }
 
         div.stButton > button:hover{
-          background: #0b1220 !important;
+          background: #f3f4f6 !important;
         }
         </style>
         """, unsafe_allow_html=True)
 
-        # -------- CARDS GRID --------
+        # -------- GRID --------
         CARDS_PER_ROW = 8
         timers_sorted = sorted(timers, key=lambda x: x.name.lower())
 
@@ -649,27 +649,27 @@ elif st.session_state.page == "instakill":
                     )
 
                     # Button
-                    if st.button("💀 Killed Now", key=f"ik_{t.name}", use_container_width=True):
+                    if st.button("Killed Now", key=f"ik_{t.name}", use_container_width=True):
 
                         old_time_str = t.last_time.strftime("%Y-%m-%d %I:%M %p")
 
                         updated_last = now_manila()
                         updated_next = updated_last + timedelta(seconds=t.interval_seconds)
 
-                        # update object
+                        # update timer object
                         for idx, obj in enumerate(st.session_state.timers):
                             if obj.name == t.name:
                                 st.session_state.timers[idx].last_time = updated_last
                                 st.session_state.timers[idx].next_time = updated_next
                                 break
 
-                        # save
+                        # save JSON
                         save_boss_data([
                             (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
                             for x in st.session_state.timers
                         ])
 
-                        # history
+                        # log history
                         log_edit(
                             t.name,
                             old_time_str,
@@ -684,7 +684,7 @@ elif st.session_state.page == "instakill":
 
                         st.rerun()
 
-        # -------- TOAST DISPLAY (2.5 seconds) --------
+        # -------- Toast (2.5 sec) --------
         if st.session_state.ik_toast:
             toast = st.session_state.ik_toast
             age = (now_manila() - toast["ts"]).total_seconds()
