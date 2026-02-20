@@ -481,25 +481,28 @@ elif st.session_state.page == "manage":
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        top1, top2, top3, top4, top5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
+        # ORDER: Boss Tracker (1) | InstaKill (2) | Manage (3) | History (4) | Logout (5)
+        top1, top2, top3, top4, top5, top6 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2, 2.0])
 
         with top1:
-            if st.button("🛠️ Manage", use_container_width=True):
-                goto("manage")
-        with top2:
-            if st.button("📜 History", use_container_width=True):
-                goto("history")
-        with top3:
-            if st.button("💀 InstaKill", use_container_width=True):
-                goto("instakill")
-        with top4:
             if st.button("⏱️ Boss Tracker", use_container_width=True):
                 goto("world")
+        with top2:
+            if st.button("💀 InstaKill", use_container_width=True):
+                goto("instakill")
+        with top3:
+            if st.button("🛠️ Manage", use_container_width=True):
+                goto("manage")
+        with top4:
+            if st.button("📜 History", use_container_width=True):
+                goto("history")
         with top5:
             if st.button("🚪 Logout", use_container_width=True):
                 st.session_state.auth = False
                 st.session_state.username = ""
                 goto("world")
+        with top6:
+            st.success(f"Admin: {st.session_state.username}")
 
         st.subheader("🛠️ Edit Boss Timers (Edit Last Time, Next auto-updates)")
 
@@ -541,23 +544,27 @@ elif st.session_state.page == "history":
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        t1, t2, t3, t4, t5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
+        # ORDER: Boss Tracker (1) | InstaKill (2) | Manage (3) | History (4) | Logout (5)
+        t1, t2, t3, t4, t5, t6 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2, 2.0])
 
         with t1:
-            if st.button("🛠️ Manage", use_container_width=True):
-                goto("manage")
+            if st.button("⏱️ Boss Tracker", use_container_width=True):
+                goto("world")
         with t2:
             if st.button("💀 InstaKill", use_container_width=True):
                 goto("instakill")
         with t3:
-            if st.button("⏱️ Boss Tracker", use_container_width=True):
-                goto("world")
+            if st.button("🛠️ Manage", use_container_width=True):
+                goto("manage")
         with t4:
+            if st.button("📜 History", use_container_width=True):
+                goto("history")
+        with t5:
             if st.button("🚪 Logout", use_container_width=True):
                 st.session_state.auth = False
                 st.session_state.username = ""
                 goto("world")
-        with t5:
+        with t6:
             st.success(f"Admin: {st.session_state.username}")
 
         st.subheader("📜 Edit History")
@@ -583,23 +590,27 @@ elif st.session_state.page == "instakill":
             goto("login")
     else:
         # -------- TOP NAV --------
-        a1, a2, a3, a4, a5 = st.columns([1.2, 1.2, 1.2, 1.2, 2.0])
+        # ORDER: Boss Tracker (1) | InstaKill (2) | Manage (3) | History (4) | Logout (5)
+        a1, a2, a3, a4, a5, a6 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2, 2.0])
 
         with a1:
-            if st.button("🛠️ Manage", use_container_width=True):
-                goto("manage")
-        with a2:
-            if st.button("📜 History", use_container_width=True):
-                goto("history")
-        with a3:
             if st.button("⏱️ Boss Tracker", use_container_width=True):
                 goto("world")
+        with a2:
+            if st.button("💀 InstaKill", use_container_width=True):
+                goto("instakill")
+        with a3:
+            if st.button("🛠️ Manage", use_container_width=True):
+                goto("manage")
         with a4:
+            if st.button("📜 History", use_container_width=True):
+                goto("history")
+        with a5:
             if st.button("🚪 Logout", use_container_width=True):
                 st.session_state.auth = False
                 st.session_state.username = ""
                 goto("world")
-        with a5:
+        with a6:
             st.success(f"Admin: {st.session_state.username}")
 
         st.subheader("💀 InstaKill")
