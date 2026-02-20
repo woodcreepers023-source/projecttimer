@@ -14,7 +14,7 @@ DATA_FILE = Path("boss_timers.json")
 HISTORY_FILE = Path("boss_history.json")
 WARN_FILE = Path("warn_sent.json")  # ✅ shared warn dedupe for everyone
 
-DISCORD_WEBHOOK_URL = st.secrets.get("DISCORD_WEBHOOK_URL", "")
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1473903250557243525/cV1UCkQ9Pfo3d4hBuSCwqX1xDf69tSWjyl9h413i0znMQENP8bkRAUMjrZAC-vwsbJpv"
 ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "1")
 
 WARNING_WINDOW_SECONDS = 5 * 60  # 5 minutes
@@ -824,3 +824,4 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
+
