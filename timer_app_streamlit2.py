@@ -24,7 +24,7 @@ LOCK_TTL_SECONDS = 10  # > your refresh interval (1s)
 DISCORD_WEBHOOK_URL = "PASTE_NEW_WEBHOOK_HERE"
 DISCORD_ROLE_ID = "1474251852538446050"
 
-ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "bestgame")
+ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "1")
 WARNING_WINDOW_SECONDS = 5 * 60  # 5 minutes
 
 # One unique id per session/tab
@@ -887,4 +887,5 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
+
 
