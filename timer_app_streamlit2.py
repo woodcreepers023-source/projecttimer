@@ -13,18 +13,19 @@ MANILA = ZoneInfo("Asia/Manila")
 
 DATA_FILE = Path("boss_timers.json")
 HISTORY_FILE = Path("boss_history.json")
-WARN_FILE = Path("warn_sent.json")  # ✅ shared warn dedupe for everyone
+WARN_FILE = Path("warn_sent.json")
 
-DISCORD_WEBHOOK_URL = "PASTE HERE"
-DISCORD_ROLE_ID = "PASTE HERE"
+# Tip: move webhook to secrets.toml later if you want
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1473903250557243525/cV1UCkQ9Pfo3d4hBuSCwqX1xDf69tSWjyl9h413i0znMQENP8bkRAUMjrZAC-vwsbJpv"
+DISCORD_ROLE_ID = "848324666584989718"
 
-ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "1")
+ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "bestgame")
 WARNING_WINDOW_SECONDS = 5 * 60  # 5 minutes
 
 
 # ------------------- Discord -------------------
 def send_discord_message(message: str) -> bool:
-    if not DISCORD_WEBHOOK_URL or DISCORD_WEBHOOK_URL == "PASTE_YOUR_DISCORD_WEBHOOK_HERE":
+    if not DISCORD_WEBHOOK_URL or DISCORD_WEBHOOK_URL == "PASTE_WEBHOOK_HERE":
         return False
 
     payload = {"content": message}
@@ -49,6 +50,10 @@ def send_discord_message(message: str) -> bool:
 
 
 # ------------------- Helpers -------------------
+def now_manila() -> datetime:
+    return datetime.now(tz=MANILA)
+
+
 def format_timedelta(td: timedelta) -> str:
     total_seconds = int(td.total_seconds())
     if total_seconds < 0:
@@ -61,8 +66,10 @@ def format_timedelta(td: timedelta) -> str:
     return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 
-def now_manila() -> datetime:
-    return datetime.now(tz=MANILA)
+def logout_and_go_world():
+    st.session_state.auth = False
+    st.session_state.username = ""
+    goto("world")
 
 
 # ------------------- Default Boss Data -------------------
@@ -96,7 +103,9 @@ default_boss_data = [
 def load_boss_data():
     if DATA_FILE.exists():
         with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        # safety: ensure list format
+        return data if isinstance(data, list) else default_boss_data.copy()
     return default_boss_data.copy()
 
 
@@ -182,6 +191,8 @@ weekly_boss_data = [
     ("Auraq", ["Friday 22:00", "Wednesday 21:00"]),
     ("Chaiflock", ["Saturday 22:00"]),
     ("Benji", ["Sunday 21:00"]),
+    ("Libitina", ["Monday 21:00", "Saturday 21:00"]),
+    ("Rakajeth", ["Tuesday 22:00", "Sunday 19:00"]),
     ("Tumier", ["Sunday 19:00"]),
     ("Icaruthia (Kransia)", ["Tuesday 21:00", "Friday 21:00"]),
     ("Motti (Kransia)", ["Wednesday 19:00", "Saturday 19:00"]),
@@ -227,15 +238,13 @@ def send_5min_warnings(field_timers):
 
         if 0 < remaining <= WARNING_WINDOW_SECONDS:
             key = _warn_key("FIELD", t.name, spawn_dt)
-
             if not warn_sent.get(key, False):
                 spawn_time_only = spawn_dt.strftime("%I:%M %p")
 
-                # ✅ EXACT format you want + role mention at bottom
                 msg = (
                     f"⏳ 5-minute warning!\n"
-                    f"{t.name} spawns at {spawn_time_only} (Manila)\n"
-                    f"Time left: {format_timedelta(spawn_dt - now)}\n"
+                    f"**{t.name}** spawns at **{spawn_time_only}** (Manila Time)\n"
+                    f"Time left: **{format_timedelta(spawn_dt - now)}**\n"
                     f"<@&{DISCORD_ROLE_ID}>"
                 )
 
@@ -251,14 +260,13 @@ def send_5min_warnings(field_timers):
 
             if 0 < remaining <= WARNING_WINDOW_SECONDS:
                 key = _warn_key("WEEKLY", boss, spawn_dt)
-
                 if not warn_sent.get(key, False):
                     spawn_time_only = spawn_dt.strftime("%I:%M %p")
 
                     msg = (
                         f"⏳ 5-minute warning!\n"
-                        f"{boss} spawns at {spawn_time_only} (Manila)\n"
-                        f"Time left: {format_timedelta(spawn_dt - now)}\n"
+                        f"**{boss}** spawns at **{spawn_time_only}** (Manila Time)\n"
+                        f"Time left: **{format_timedelta(spawn_dt - now)}**\n"
                         f"<@&{DISCORD_ROLE_ID}>"
                     )
 
@@ -370,7 +378,7 @@ def next_boss_banner_combined(field_timers):
     )
 
 
-# ------------------- Field Boss Table -------------------
+# ------------------- Tables -------------------
 def display_boss_table_sorted_newstyle(timers_list):
     timers_sorted = sorted(timers_list, key=lambda t: t.next_time)
 
@@ -405,8 +413,6 @@ def display_boss_table_sorted_newstyle(timers_list):
     table td {
         vertical-align: middle !important;
     }
-
-    /* Center columns 2 to 6 (everything except Boss Name) */
     table td:nth-child(2), table th:nth-child(2),
     table td:nth-child(3), table th:nth-child(3),
     table td:nth-child(4), table th:nth-child(4),
@@ -420,7 +426,6 @@ def display_boss_table_sorted_newstyle(timers_list):
     st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 
-# ------------------- Weekly Table -------------------
 def display_weekly_boss_table_newstyle():
     now = now_manila()
     upcoming = []
@@ -445,15 +450,35 @@ def display_weekly_boss_table_newstyle():
     st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 
+# ------------------- UI Helpers -------------------
+def admin_nav(active_page: str):
+    c1, c2, c3, c4, c5, c6 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2, 2.0])
+
+    with c1:
+        if st.button("⏱️ Boss Tracker", use_container_width=True):
+            goto("world")
+    with c2:
+        if st.button("💀 InstaKill", use_container_width=True):
+            goto("instakill")
+    with c3:
+        if st.button("🛠️ Manage", use_container_width=True):
+            goto("manage")
+    with c4:
+        if st.button("📜 History", use_container_width=True):
+            goto("history")
+    with c5:
+        if st.button("🚪 Logout", use_container_width=True):
+            logout_and_go_world()
+    with c6:
+        st.success(f"Admin: {st.session_state.username}")
+
+
 # ------------------- Streamlit Setup -------------------
 st.set_page_config(page_title="Lord9 Santiago 7 Boss Timer", layout="wide")
 st.title("🛡️ Lord9 Santiago 7 Boss Timer")
 
-
-# ------------------- GLOBAL UNIFORM BUTTON STYLE -------------------
 st.markdown("""
 <style>
-/* Make ALL buttons uniform */
 div.stButton > button{
     width: 100% !important;
     border-radius: 12px !important;
@@ -480,11 +505,15 @@ st.session_state.setdefault("auth", False)
 st.session_state.setdefault("username", "")
 st.session_state.setdefault("page", "world")  # world | login | manage | history | instakill
 
-# ✅ auto-disappearing toast for Manage page
-st.session_state.setdefault("manage_toast", None)
+st.session_state.setdefault("manage_saved_msgs", {})
+
+st.session_state.setdefault("ik_toast", None)
 
 
 def goto(page_name: str):
+    if st.session_state.page == "manage" and page_name != "manage":
+        st.session_state.manage_saved_msgs = {}
+
     st.session_state.page = page_name
     st.rerun()
 
@@ -499,7 +528,6 @@ if "timers" not in st.session_state:
     st.session_state.timers = build_timers()
 
 timers = st.session_state.timers
-
 for t in timers:
     t.update_next()
 
@@ -566,37 +594,14 @@ elif st.session_state.page == "login":
 
 # ------------------- MANAGE PAGE -------------------
 elif st.session_state.page == "manage":
-
     if not st.session_state.auth:
         st.warning("You must login first.")
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        # Top Navigation
-        top1, top2, top3, top4, top5, top6 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2, 2.0])
-
-        with top1:
-            if st.button("⏱️ Boss Tracker", use_container_width=True):
-                goto("world")
-        with top2:
-            if st.button("💀 InstaKill", use_container_width=True):
-                goto("instakill")
-        with top3:
-            if st.button("🛠️ Manage", use_container_width=True):
-                goto("manage")
-        with top4:
-            if st.button("📜 History", use_container_width=True):
-                goto("history")
-        with top5:
-            if st.button("🚪 Logout", use_container_width=True):
-                st.session_state.auth = False
-                st.session_state.username = ""
-                goto("world")
-        with top6:
-            st.success(f"Admin: {st.session_state.username}")
+        admin_nav("manage")
 
         st.subheader("🛠️ Edit Boss Timers (Edit Last Time, Next auto-updates)")
-        st.session_state.setdefault("manage_toast", None)
 
         for i, timer in enumerate(timers):
             with st.expander(f"Edit {timer.name}", expanded=False):
@@ -631,24 +636,15 @@ elif st.session_state.page == "manage":
 
                     log_edit(timer.name, old_time_str, updated_last_time.strftime("%Y-%m-%d %I:%M %p"))
 
-                    st.session_state.manage_toast = {
-                        "boss": timer.name,
-                        "msg": f"✅ {timer.name} updated! Next: {updated_next_time.strftime('%Y-%m-%d %I:%M %p')}",
-                        "ts": now_manila(),
-                    }
+                    st.session_state.manage_saved_msgs[timer.name] = (
+                        f"✅ {timer.name} updated! Next: {updated_next_time.strftime('%Y-%m-%d %I:%M %p')}"
+                    )
 
                     st.rerun()
 
-                toast = st.session_state.get("manage_toast")
-                if toast and toast["boss"] == timer.name:
-                    age = (now_manila() - toast["ts"]).total_seconds()
-
-                    st.success(toast["msg"])
-                    st_autorefresh(interval=500, key=f"manage_refresh_{timer.name}")
-
-                    if age >= 0.1:
-                        st.session_state.manage_toast = None
-                        st.rerun()
+                msg = st.session_state.manage_saved_msgs.get(timer.name)
+                if msg:
+                    st.success(msg)
 
 
 # ------------------- HISTORY PAGE -------------------
@@ -658,27 +654,7 @@ elif st.session_state.page == "history":
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        t1, t2, t3, t4, t5, t6 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2, 2.0])
-
-        with t1:
-            if st.button("⏱️ Boss Tracker", use_container_width=True):
-                goto("world")
-        with t2:
-            if st.button("💀 InstaKill", use_container_width=True):
-                goto("instakill")
-        with t3:
-            if st.button("🛠️ Manage", use_container_width=True):
-                goto("manage")
-        with t4:
-            if st.button("📜 History", use_container_width=True):
-                goto("history")
-        with t5:
-            if st.button("🚪 Logout", use_container_width=True):
-                st.session_state.auth = False
-                st.session_state.username = ""
-                goto("world")
-        with t6:
-            st.success(f"Admin: {st.session_state.username}")
+        admin_nav("history")
 
         st.subheader("📜 Edit History")
 
@@ -697,36 +673,14 @@ elif st.session_state.page == "history":
 
 # ------------------- INSTAKILL PAGE -------------------
 elif st.session_state.page == "instakill":
-
     if not st.session_state.auth:
         st.warning("You must login first.")
         if st.button("Go to Login", use_container_width=True):
             goto("login")
     else:
-        a1, a2, a3, a4, a5, a6 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2, 2.0])
-
-        with a1:
-            if st.button("⏱️ Boss Tracker", use_container_width=True):
-                goto("world")
-        with a2:
-            if st.button("💀 InstaKill", use_container_width=True):
-                goto("instakill")
-        with a3:
-            if st.button("🛠️ Manage", use_container_width=True):
-                goto("manage")
-        with a4:
-            if st.button("📜 History", use_container_width=True):
-                goto("history")
-        with a5:
-            if st.button("🚪 Logout", use_container_width=True):
-                st.session_state.auth = False
-                st.session_state.username = ""
-                goto("world")
-        with a6:
-            st.success(f"Admin: {st.session_state.username}")
+        admin_nav("instakill")
 
         st.subheader("💀 InstaKill")
-        st.session_state.setdefault("ik_toast", None)
 
         CUSTOM_BOSS_ORDER = [
             "Venatus",
@@ -809,13 +763,13 @@ elif st.session_state.page == "instakill":
                         updated_last = now_manila()
                         updated_next = updated_last + timedelta(seconds=t.interval_seconds)
 
-                        # ✅ Discord notify (your preferred format with date)
                         killer = st.session_state.get("username", "Unknown")
                         spawn_str = updated_next.strftime("%B %d, %Y | %I:%M %p")
+
                         msg = (
-                            f"💀 {t.name} has been killed. "
-                            f"Next spawn: {spawn_str} (Manila). "
-                            f"Updated by {killer}."
+                            f"💀 **{t.name}** has been killed.\n"
+                            f"Next spawn: **{spawn_str}** (Manila Time)\n"
+                            f"Updated by {killer}"
                         )
                         send_discord_message(msg)
 
@@ -839,6 +793,7 @@ elif st.session_state.page == "instakill":
 
                         st.rerun()
 
+        # keep your existing instakill toast behavior
         if st.session_state.ik_toast:
             toast = st.session_state.ik_toast
             age = (now_manila() - toast["ts"]).total_seconds()
@@ -849,6 +804,3 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
-
-
-
