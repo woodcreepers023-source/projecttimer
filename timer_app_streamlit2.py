@@ -692,12 +692,17 @@ elif st.session_state.page == "manage":
 
         st.subheader("🛠️ Edit Boss Timers (Edit Last Time, Next auto-updates)")
 
-        # Optional: one-click maintenance reset
+        # ✅ Maintenance reset button (clears ALL warnings) + green notification AFTER rerun
         if st.button("🧹 Maintenance Reset (clear ALL warnings)", width="stretch"):
             save_warn_sent({})
-            st.success("✅ Cleared all warnings. Now update boss timers.")
+            st.session_state["maintenance_success"] = True
             st.rerun()
 
+        if st.session_state.get("maintenance_success"):
+            st.success("✅ Cleared all warnings. Now update boss timers.")
+            st.session_state["maintenance_success"] = False
+
+        # ---- Edit timers ----
         for i, timer in enumerate(timers):
             with st.expander(f"Edit {timer.name}", expanded=False):
 
@@ -729,7 +734,7 @@ elif st.session_state.page == "manage":
                         for t in st.session_state.timers
                     ])
 
-                    # ✅ critical: clear warn keys for that boss after edit
+                    # ✅ critical: clear warn keys for this boss so no "old warning" fires
                     clear_warn_for_boss(timer.name)
 
                     log_edit(timer.name, old_time_str, updated_last_time.strftime("%Y-%m-%d %I:%M %p"))
@@ -887,5 +892,6 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
+
 
 
