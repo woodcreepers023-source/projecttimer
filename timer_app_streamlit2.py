@@ -7,6 +7,7 @@ import requests
 import json
 from pathlib import Path
 import time
+import uuid
 
 # ------------------- Config -------------------
 MANILA = ZoneInfo("Asia/Manila")
@@ -15,17 +16,25 @@ DATA_FILE = Path("boss_timers.json")
 HISTORY_FILE = Path("boss_history.json")
 WARN_FILE = Path("warn_sent.json")
 
+# ✅ Sender lock (prevents double-send)
+LOCK_FILE = Path("sender_lock.json")
+LOCK_TTL_SECONDS = 10  # > your refresh interval (1s)
+
 # Tip: move webhook to secrets.toml later if you want
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1473903250557243525/cV1UCkQ9Pfo3d4hBuSCwqX1xDf69tSWjyl9h413i0znMQENP8bkRAUMjrZAC-vwsbJpv"
-DISCORD_ROLE_ID = "848324666584989718"
+DISCORD_WEBHOOK_URL = "PASTE_NEW_WEBHOOK_HERE"
+DISCORD_ROLE_ID = "1474251852538446050"
 
 ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "bestgame")
 WARNING_WINDOW_SECONDS = 5 * 60  # 5 minutes
 
+# One unique id per session/tab
+if "_session_id" not in st.session_state:
+    st.session_state["_session_id"] = uuid.uuid4().hex
+
 
 # ------------------- Discord -------------------
 def send_discord_message(message: str) -> bool:
-    if not DISCORD_WEBHOOK_URL or DISCORD_WEBHOOK_URL == "PASTE_WEBHOOK_HERE":
+    if not DISCORD_WEBHOOK_URL or DISCORD_WEBHOOK_URL in ("PASTE_WEBHOOK_HERE", "PASTE_NEW_WEBHOOK_HERE"):
         return False
 
     payload = {"content": message}
@@ -104,7 +113,6 @@ def load_boss_data():
     if DATA_FILE.exists():
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-        # safety: ensure list format
         return data if isinstance(data, list) else default_boss_data.copy()
     return default_boss_data.copy()
 
@@ -127,12 +135,67 @@ def load_warn_sent() -> dict:
 
 
 def save_warn_sent(warn_dict: dict) -> None:
-    # prevent file from growing forever
     if len(warn_dict) > 1200:
         warn_dict = dict(list(warn_dict.items())[-900:])
 
     with open(WARN_FILE, "w", encoding="utf-8") as f:
         json.dump(warn_dict, f, indent=2)
+
+
+def clear_warn_for_boss(boss_name: str):
+    warn = load_warn_sent()
+    for k in list(warn.keys()):
+        if f"|{boss_name}|" in k:
+            warn.pop(k, None)
+    save_warn_sent(warn)
+
+
+# ------------------- Sender Lock -------------------
+def _load_lock():
+    if LOCK_FILE.exists():
+        try:
+            return json.loads(LOCK_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_lock(data: dict):
+    LOCK_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def acquire_sender_lock(session_id: str) -> bool:
+    """
+    Only ONE session can send warnings.
+    Other tabs are viewer-only.
+    """
+    now = now_manila()
+    lock = _load_lock()
+
+    owner = lock.get("owner")
+    expires_at_str = lock.get("expires_at")
+
+    expires_at = None
+    if expires_at_str:
+        try:
+            expires_at = datetime.fromisoformat(expires_at_str)
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=MANILA)
+        except Exception:
+            expires_at = None
+
+    # free/expired or already ours -> take/renew
+    if (not lock) or (not expires_at) or (expires_at <= now) or (owner == session_id):
+        new_lock = {
+            "owner": session_id,
+            "expires_at": (now + timedelta(seconds=LOCK_TTL_SECONDS)).isoformat(),
+        }
+        _save_lock(new_lock)
+
+        check = _load_lock()
+        return check.get("owner") == session_id
+
+    return False
 
 
 # ------------------- Edit History -------------------
@@ -221,6 +284,20 @@ def get_next_weekly_spawn(day_time: str) -> datetime:
     return spawn_dt
 
 
+# ------------------- Anti-old-warning: latest file check -------------------
+def _parse_last_time(s: str) -> datetime:
+    return datetime.strptime(s, "%Y-%m-%d %I:%M %p").replace(tzinfo=MANILA)
+
+
+def get_latest_field_spawn_from_file(boss_name: str):
+    data = load_boss_data()
+    for name, interval_minutes, last_time_str in data:
+        if name == boss_name:
+            last_dt = _parse_last_time(last_time_str)
+            return last_dt + timedelta(minutes=int(interval_minutes))
+    return None
+
+
 # ------------------- 5-minute warning logic -------------------
 def _warn_key(source: str, boss_name: str, spawn_dt: datetime) -> str:
     return f"{source}|{boss_name}|{spawn_dt.strftime('%Y-%m-%d %H:%M')}"
@@ -228,8 +305,6 @@ def _warn_key(source: str, boss_name: str, spawn_dt: datetime) -> str:
 
 def send_5min_warnings(field_timers):
     now = now_manila()
-    warn_sent = load_warn_sent()
-    changed = False
 
     # -------- FIELD BOSSES --------
     for t in field_timers:
@@ -237,22 +312,37 @@ def send_5min_warnings(field_timers):
         remaining = (spawn_dt - now).total_seconds()
 
         if 0 < remaining <= WARNING_WINDOW_SECONDS:
+            # ✅ Prevent stale sessions from sending old warning
+            latest_spawn = get_latest_field_spawn_from_file(t.name)
+            if not latest_spawn:
+                continue
+            if abs((latest_spawn - spawn_dt).total_seconds()) > 1:
+                continue  # stale tab/session
+
             key = _warn_key("FIELD", t.name, spawn_dt)
-            if not warn_sent.get(key, False):
-                spawn_time_only = spawn_dt.strftime("%I:%M %p")
 
-                msg = (
-                    f"⏳ 5-minute warning!\n"
-                    f"**{t.name}** spawns at **{spawn_time_only}** (Manila Time)\n"
-                    f"Time left: **{format_timedelta(spawn_dt - now)}**\n"
-                    f"<@&{DISCORD_ROLE_ID}>"
-                )
+            # ✅ Re-check warn file right before sending (extra safety)
+            warn_live = load_warn_sent()
+            if warn_live.get(key, False):
+                continue
 
-                if send_discord_message(msg):
-                    warn_sent[key] = True
-                    changed = True
+            spawn_time_only = spawn_dt.strftime("%I:%M %p")
+
+            msg = (
+                f"⏳ 5-minute warning!\n"
+                f"**{t.name}** spawns at **{spawn_time_only}** (Manila Time)\n"
+                f"Time left: **{format_timedelta(spawn_dt - now)}**\n"
+                f"<@&{DISCORD_ROLE_ID}>"
+            )
+
+            if send_discord_message(msg):
+                warn_live[key] = True
+                save_warn_sent(warn_live)
 
     # -------- WEEKLY BOSSES --------
+    warn_sent = load_warn_sent()
+    changed = False
+
     for boss, times in weekly_boss_data:
         for sched in times:
             spawn_dt = get_next_weekly_spawn(sched)
@@ -455,19 +545,19 @@ def admin_nav(active_page: str):
     c1, c2, c3, c4, c5, c6 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2, 2.0])
 
     with c1:
-        if st.button("⏱️ Boss Tracker", use_container_width=True):
+        if st.button("⏱️ Boss Tracker", width="stretch"):
             goto("world")
     with c2:
-        if st.button("💀 InstaKill", use_container_width=True):
+        if st.button("💀 InstaKill", width="stretch"):
             goto("instakill")
     with c3:
-        if st.button("🛠️ Manage", use_container_width=True):
+        if st.button("🛠️ Manage", width="stretch"):
             goto("manage")
     with c4:
-        if st.button("📜 History", use_container_width=True):
+        if st.button("📜 History", width="stretch"):
             goto("history")
     with c5:
-        if st.button("🚪 Logout", use_container_width=True):
+        if st.button("🚪 Logout", width="stretch"):
             logout_and_go_world()
     with c6:
         st.success(f"Admin: {st.session_state.username}")
@@ -504,16 +594,13 @@ div.stButton > button:active{
 st.session_state.setdefault("auth", False)
 st.session_state.setdefault("username", "")
 st.session_state.setdefault("page", "world")  # world | login | manage | history | instakill
-
 st.session_state.setdefault("manage_saved_msgs", {})
-
 st.session_state.setdefault("ik_toast", None)
 
 
 def goto(page_name: str):
     if st.session_state.page == "manage" and page_name != "manage":
         st.session_state.manage_saved_msgs = {}
-
     st.session_state.page = page_name
     st.rerun()
 
@@ -531,8 +618,10 @@ timers = st.session_state.timers
 for t in timers:
     t.update_next()
 
+# ✅ ONLY THE LOCK OWNER SENDS WARNINGS
 if st.session_state.page == "world":
-    send_5min_warnings(timers)
+    if acquire_sender_lock(st.session_state["_session_id"]):
+        send_5min_warnings(timers)
 
 
 # ------------------- WORLD PAGE HEADER -------------------
@@ -541,10 +630,10 @@ if st.session_state.page == "world":
 
     with left_btn:
         if not st.session_state.auth:
-            if st.button("🔐 Admin Login"):
+            if st.button("🔐 Admin Login", width="stretch"):
                 goto("login")
         else:
-            if st.button("🛠️ Manage / Edit"):
+            if st.button("🛠️ Manage / Edit", width="stretch"):
                 goto("manage")
 
     with mid_banner:
@@ -575,11 +664,11 @@ elif st.session_state.page == "login":
     with st.form("login_form_page"):
         username_in = st.text_input("Name", key="login_username_page")
         password_in = st.text_input("Password", type="password", key="login_password_page")
-        login_clicked = st.form_submit_button("Login", use_container_width=True)
+        login_clicked = st.form_submit_button("Login", width="stretch")
 
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("⬅️ Back", use_container_width=True):
+        if st.button("⬅️ Back", width="stretch"):
             goto("world")
 
     if login_clicked:
@@ -596,12 +685,18 @@ elif st.session_state.page == "login":
 elif st.session_state.page == "manage":
     if not st.session_state.auth:
         st.warning("You must login first.")
-        if st.button("Go to Login", use_container_width=True):
+        if st.button("Go to Login", width="stretch"):
             goto("login")
     else:
         admin_nav("manage")
 
         st.subheader("🛠️ Edit Boss Timers (Edit Last Time, Next auto-updates)")
+
+        # Optional: one-click maintenance reset
+        if st.button("🧹 Maintenance Reset (clear ALL warnings)", width="stretch"):
+            save_warn_sent({})
+            st.success("✅ Cleared all warnings. Now update boss timers.")
+            st.rerun()
 
         for i, timer in enumerate(timers):
             with st.expander(f"Edit {timer.name}", expanded=False):
@@ -619,7 +714,7 @@ elif st.session_state.page == "manage":
                     step=60,
                 )
 
-                if st.button(f"Save {timer.name}", key=f"save_{timer.name}"):
+                if st.button(f"Save {timer.name}", key=f"save_{timer.name}", width="stretch"):
 
                     old_time_str = timer.last_time.strftime("%Y-%m-%d %I:%M %p")
 
@@ -633,6 +728,9 @@ elif st.session_state.page == "manage":
                         (t.name, t.interval_minutes, t.last_time.strftime("%Y-%m-%d %I:%M %p"))
                         for t in st.session_state.timers
                     ])
+
+                    # ✅ critical: clear warn keys for that boss after edit
+                    clear_warn_for_boss(timer.name)
 
                     log_edit(timer.name, old_time_str, updated_last_time.strftime("%Y-%m-%d %I:%M %p"))
 
@@ -651,7 +749,7 @@ elif st.session_state.page == "manage":
 elif st.session_state.page == "history":
     if not st.session_state.auth:
         st.warning("You must login first.")
-        if st.button("Go to Login", use_container_width=True):
+        if st.button("Go to Login", width="stretch"):
             goto("login")
     else:
         admin_nav("history")
@@ -664,7 +762,7 @@ elif st.session_state.page == "history":
 
             if history:
                 df_history = pd.DataFrame(history).sort_values("edited_at", ascending=False)
-                st.dataframe(df_history, use_container_width=True)
+                st.dataframe(df_history, width="stretch")
             else:
                 st.info("No edits yet.")
         else:
@@ -675,7 +773,7 @@ elif st.session_state.page == "history":
 elif st.session_state.page == "instakill":
     if not st.session_state.auth:
         st.warning("You must login first.")
-        if st.button("Go to Login", use_container_width=True):
+        if st.button("Go to Login", width="stretch"):
             goto("login")
     else:
         admin_nav("instakill")
@@ -683,28 +781,10 @@ elif st.session_state.page == "instakill":
         st.subheader("💀 InstaKill")
 
         CUSTOM_BOSS_ORDER = [
-            "Venatus",
-            "Viorent",
-            "Ego",
-            "Livera",
-            "Undomiel",
-            "Araneo",
-            "Lady Dalia",
-            "General Aquleus",
-            "Amentis",
-            "Baron Braudmore",
-            "Wannitas",
-            "Metus",
-            "Duplican",
-            "Shuliar",
-            "Gareth",
-            "Titore",
-            "Larba",
-            "Catena",
-            "Secreta",
-            "Ordo",
-            "Asta",
-            "Supore",
+            "Venatus", "Viorent", "Ego", "Livera", "Undomiel", "Araneo", "Lady Dalia",
+            "General Aquleus", "Amentis", "Baron Braudmore", "Wannitas", "Metus",
+            "Duplican", "Shuliar", "Gareth", "Titore", "Larba", "Catena",
+            "Secreta", "Ordo", "Asta", "Supore",
         ]
 
         order_index = {name: i for i, name in enumerate(CUSTOM_BOSS_ORDER)}
@@ -753,7 +833,7 @@ elif st.session_state.page == "instakill":
                         unsafe_allow_html=True
                     )
 
-                    clicked = st.button("Killed Now", key=f"ik_{t.name}", use_container_width=True)
+                    clicked = st.button("Killed Now", key=f"ik_{t.name}", width="stretch")
 
                     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -783,6 +863,9 @@ elif st.session_state.page == "instakill":
                             (x.name, x.interval_minutes, x.last_time.strftime("%Y-%m-%d %I:%M %p"))
                             for x in st.session_state.timers
                         ])
+
+                        # ✅ critical: clear warn keys for that boss after instakill
+                        clear_warn_for_boss(t.name)
 
                         log_edit(t.name, old_time_str, updated_last.strftime("%Y-%m-%d %I:%M %p"))
 
