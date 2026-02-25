@@ -19,17 +19,16 @@ ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "bestgame")
 WARNING_WINDOW_SECONDS = 5 * 60  # 5 minutes
 
 # ------------------- Discord (TWO TARGETS) -------------------
-# ✅ Put your 2 webhooks + 2 role IDs here (role IDs usually differ per server)
 DISCORD_TARGETS = [
     {
         "name": "discord_1",
-        "webhook": st.secrets.get("DISCORD_WEBHOOK_URL_1", "PASTE_WEBHOOK_1_HERE"),
-        "role_id": st.secrets.get("DISCORD_ROLE_ID_1", "PASTE_ROLE_ID_1_HERE"),
+        "webhook": "https://discord.com/api/webhooks/1473903250557243525/cV1UCkQ9Pfo3d4hBuSCwqX1xDf69tSWjyl9h413i0znMQENP8bkRAUMjrZAC-vwsbJpv",
+        "role_id": "848324666584989718",
     },
     {
         "name": "discord_2",
-        "webhook": st.secrets.get("DISCORD_WEBHOOK_URL_2", "PASTE_WEBHOOK_2_HERE"),
-        "role_id": st.secrets.get("DISCORD_ROLE_ID_2", "PASTE_ROLE_ID_2_HERE"),
+        "webhook": "https://discord.com/api/webhooks/1476030526300098724/JNIPfUDqtY1AOT3zN1D8MkDamIDMXSlWBDcKktTNgo2oz0j7Zn15yaiU6WkvJAWyHvgp",
+        "role_id": "1476031613648240651",
     },
 ]
 
@@ -825,3 +824,4 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
+
