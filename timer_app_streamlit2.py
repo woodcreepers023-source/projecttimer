@@ -22,8 +22,8 @@ WARNING_WINDOW_SECONDS = 5 * 60  # 5 minutes
 DISCORD_TARGETS = [
     {
         "name": "discord_1",
-        "webhook": "https://discord.com/api/webhooks/1473903250557243525/cV1UCkQ9Pfo3d4hBuSCwqX1xDf69tSWjyl9h413i0znMQENP8bkRAUMjrZAC-vwsbJpv",
-        "role_id": "848324666584989718",
+        "webhook": "https://discord.com/api/webhooks/1474251528377466932/gO9aIgcH4F8-OFme1G2ghp4frY2d-1FZO5EGcLFlw5D1pdyYBUJo_FWfNf8qnCtJboXc",
+        "role_id": "1474251852538446050",
     },
     {
         "name": "discord_2",
@@ -56,17 +56,17 @@ def _post_webhook(webhook_url: str, payload: dict) -> bool:
         return False
 
 
-def send_discord_message_to_all(message_builder) -> bool:
+def send_discord_message_per_target(message_builder) -> dict:
     """
     message_builder: function(target_dict) -> message_str
-    Returns True if at least one Discord target succeeded.
+    Returns: dict {target_name: True/False}
     """
-    any_ok = False
+    results = {}
     for target in DISCORD_TARGETS:
         msg = message_builder(target)
         ok = _post_webhook(target.get("webhook", ""), {"content": msg})
-        any_ok = any_ok or ok
-    return any_ok
+        results[target.get("name", "unknown")] = ok
+    return results
 
 
 # ------------------- Helpers -------------------
@@ -94,28 +94,28 @@ def logout_and_go_world():
 
 # ------------------- Default Boss Data -------------------
 default_boss_data = [
-    ("Venatus", 600, "2025-09-19 12:31 PM"),
-    ("Viorent", 600, "2025-09-19 12:32 PM"),
-    ("Ego", 1260, "2025-09-19 04:32 PM"),
-    ("Livera", 1440, "2025-09-19 04:36 PM"),
-    ("Undomiel", 1440, "2025-09-19 04:42 PM"),
-    ("Araneo", 1440, "2025-09-19 04:33 PM"),
-    ("Lady Dalia", 1080, "2025-09-19 05:58 AM"),
-    ("General Aquleus", 1740, "2025-09-18 09:45 PM"),
-    ("Amentis", 1740, "2025-09-18 09:42 PM"),
-    ("Baron Braudmore", 1920, "2025-09-19 12:37 AM"),
-    ("Wannitas", 2880, "2025-09-19 04:46 PM"),
-    ("Metus", 2880, "2025-09-18 06:53 AM"),
-    ("Duplican", 2880, "2025-09-19 04:40 PM"),
-    ("Shuliar", 2100, "2025-09-19 03:49 AM"),
-    ("Gareth", 1920, "2025-09-19 12:38 AM"),
-    ("Titore", 2220, "2025-09-19 04:36 PM"),
-    ("Larba", 2100, "2025-09-19 03:55 AM"),
-    ("Catena", 2100, "2025-09-19 04:12 AM"),
-    ("Secreta", 3720, "2025-09-17 05:15 PM"),
-    ("Ordo", 3720, "2025-09-17 05:07 PM"),
-    ("Asta", 3720, "2025-09-17 04:59 PM"),
-    ("Supore", 3720, "2025-09-20 07:15 AM"),
+    ("Venatus", 600, "2026-02-25 01:04 PM"),
+    ("Viorent", 600, "2026-02-25 01:05 PM"),
+    ("Ego", 1260, "2026-02-25 02:09 PM"),
+    ("Livera", 1440, "2026-02-24 05:08 PM"),
+    ("Undomiel", 1440, "2026-02-24 05:08 PM"),
+    ("Araneo", 1440, "2026-02-24 05:10 PM"),
+    ("Lady Dalia", 1080, "2026-02-25 11:08 AM"),
+    ("General Aquleus", 1740, "2026-02-24 05:10 PM"),
+    ("Amentis", 1740, "2026-02-24 05:05 PM"),
+    ("Baron Braudmore", 1920, "2026-02-24 05:10 PM"),
+    ("Wanitas", 2880, "2026-02-24 05:06 PM"),
+    ("Metus", 2880, "2026-02-24 05:04 PM"),
+    ("Duplican", 2880, "2026-02-24 05:06 PM"),
+    ("Shuliar", 2100, "2026-02-24 05:10 PM"),
+    ("Gareth", 1920, "2026-02-24 05:08 PM"),
+    ("Titore", 2220, "2026-02-24 05:11 PM"),
+    ("Larba", 2100, "2026-02-24 05:10 PM"),
+    ("Catena", 2100, "2026-02-24 05:13 PM"),
+    ("Secreta", 3720, "2026-02-24 05:09 PM"),
+    ("Ordo", 3720, "2026-02-24 05:05 PM"),
+    ("Asta", 3720, "2026-02-24 05:10 PM"),
+    ("Supore", 3720, "2026-02-24 05:11 PM"),
 ]
 
 
@@ -146,8 +146,9 @@ def load_warn_sent() -> dict:
 
 
 def save_warn_sent(warn_dict: dict) -> None:
-    if len(warn_dict) > 1200:
-        warn_dict = dict(list(warn_dict.items())[-900:])
+    # keep the file from growing forever
+    if len(warn_dict) > 2000:
+        warn_dict = dict(list(warn_dict.items())[-1500:])
 
     with open(WARN_FILE, "w", encoding="utf-8") as f:
         json.dump(warn_dict, f, indent=2)
@@ -239,15 +240,27 @@ def get_next_weekly_spawn(day_time: str) -> datetime:
     return spawn_dt
 
 
-# ------------------- 5-minute warning logic -------------------
-def _warn_key(source: str, boss_name: str, spawn_dt: datetime) -> str:
-    return f"{source}|{boss_name}|{spawn_dt.strftime('%Y-%m-%d %H:%M')}"
+# ------------------- 5-minute warning logic (NO DUPLICATES PER DISCORD) -------------------
+def _warn_key(source: str, boss_name: str, spawn_dt: datetime, target_name: str) -> str:
+    # per-target key so discord_1 and discord_2 are tracked separately
+    return f"{source}|{boss_name}|{spawn_dt.strftime('%Y-%m-%d %H:%M')}|{target_name}"
+
+
+def _claim_warn_key(warn_sent: dict, key: str) -> bool:
+    """
+    Claim the key BEFORE sending (helps avoid duplicates across multiple open sessions).
+    Returns True if we successfully claimed it (it was not set yet).
+    """
+    if warn_sent.get(key, False):
+        return False
+    warn_sent[key] = True
+    save_warn_sent(warn_sent)  # save immediately so other sessions see it
+    return True
 
 
 def send_5min_warnings(field_timers):
     now = now_manila()
     warn_sent = load_warn_sent()
-    changed = False
 
     # -------- FIELD BOSSES --------
     for t in field_timers:
@@ -255,23 +268,36 @@ def send_5min_warnings(field_timers):
         remaining = (spawn_dt - now).total_seconds()
 
         if 0 < remaining <= WARNING_WINDOW_SECONDS:
-            key = _warn_key("FIELD", t.name, spawn_dt)
-            if not warn_sent.get(key, False):
-                spawn_time_only = spawn_dt.strftime("%I:%M %p")
+            spawn_time_only = spawn_dt.strftime("%I:%M %p")
 
-                def build_msg(target):
-                    role_id = target.get("role_id", "")
-                    ping = f"<@&{role_id}>" if role_id and "PASTE_ROLE_ID" not in role_id else ""
-                    return (
-                        f"⏳ 5-minute warning!\n"
-                        f"**{t.name}** spawns at **{spawn_time_only}** (Manila Time)\n"
-                        f"Time left: **{format_timedelta(spawn_dt - now)}**\n"
-                        f"{ping}"
-                    )
+            def build_msg(target):
+                role_id = target.get("role_id", "")
+                ping = f"<@&{role_id}>" if role_id and "PASTE_ROLE_ID" not in role_id else ""
+                return (
+                    f"⏳ 5-minute warning!\n"
+                    f"**{t.name}** spawns at **{spawn_time_only}** (Manila Time)\n"
+                    f"Time left: **{format_timedelta(spawn_dt - now)}**\n"
+                    f"{ping}"
+                )
 
-                if send_discord_message_to_all(build_msg):
-                    warn_sent[key] = True
-                    changed = True
+            for target in DISCORD_TARGETS:
+                target_name = target.get("name", "unknown")
+                key = _warn_key("FIELD", t.name, spawn_dt, target_name)
+
+                # skip if already sent (per-target)
+                if not _claim_warn_key(warn_sent, key):
+                    continue
+
+                # send to that single target
+                msg = build_msg(target)
+                ok = _post_webhook(target.get("webhook", ""), {"content": msg})
+
+                # If you WANT retries on failure, uncomment this block.
+                # If you prefer "never duplicate ever", keep it commented.
+                #
+                # if not ok:
+                #     warn_sent.pop(key, None)
+                #     save_warn_sent(warn_sent)
 
     # -------- WEEKLY BOSSES --------
     for boss, times in weekly_boss_data:
@@ -280,26 +306,32 @@ def send_5min_warnings(field_timers):
             remaining = (spawn_dt - now).total_seconds()
 
             if 0 < remaining <= WARNING_WINDOW_SECONDS:
-                key = _warn_key("WEEKLY", boss, spawn_dt)
-                if not warn_sent.get(key, False):
-                    spawn_time_only = spawn_dt.strftime("%I:%M %p")
+                spawn_time_only = spawn_dt.strftime("%I:%M %p")
 
-                    def build_msg(target):
-                        role_id = target.get("role_id", "")
-                        ping = f"<@&{role_id}>" if role_id and "PASTE_ROLE_ID" not in role_id else ""
-                        return (
-                            f"⏳ 5-minute warning!\n"
-                            f"**{boss}** spawns at **{spawn_time_only}** (Manila Time)\n"
-                            f"Time left: **{format_timedelta(spawn_dt - now)}**\n"
-                            f"{ping}"
-                        )
+                def build_msg(target):
+                    role_id = target.get("role_id", "")
+                    ping = f"<@&{role_id}>" if role_id and "PASTE_ROLE_ID" not in role_id else ""
+                    return (
+                        f"⏳ 5-minute warning!\n"
+                        f"**{boss}** spawns at **{spawn_time_only}** (Manila Time)\n"
+                        f"Time left: **{format_timedelta(spawn_dt - now)}**\n"
+                        f"{ping}"
+                    )
 
-                    if send_discord_message_to_all(build_msg):
-                        warn_sent[key] = True
-                        changed = True
+                for target in DISCORD_TARGETS:
+                    target_name = target.get("name", "unknown")
+                    key = _warn_key("WEEKLY", boss, spawn_dt, target_name)
 
-    if changed:
-        save_warn_sent(warn_sent)
+                    if not _claim_warn_key(warn_sent, key):
+                        continue
+
+                    msg = build_msg(target)
+                    ok = _post_webhook(target.get("webhook", ""), {"content": msg})
+
+                    # retries (optional)
+                    # if not ok:
+                    #     warn_sent.pop(key, None)
+                    #     save_warn_sent(warn_sent)
 
 
 # ------------------- Banner -------------------
@@ -791,8 +823,9 @@ elif st.session_state.page == "instakill":
                             f"Updated by {killer}"
                         )
 
-                        # ✅ send to both Discords
-                        send_discord_message_to_all(lambda target: msg)
+                        # send to each Discord target once
+                        for target in DISCORD_TARGETS:
+                            _post_webhook(target.get("webhook", ""), {"content": msg})
 
                         for idx, obj in enumerate(st.session_state.timers):
                             if obj.name == t.name:
@@ -824,4 +857,3 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
-
