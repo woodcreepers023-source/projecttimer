@@ -22,12 +22,12 @@ WARNING_WINDOW_SECONDS = 5 * 60  # 5 minutes
 DISCORD_TARGETS = [
     {
         "name": "discord_1",
-        "webhook": "https://discord.com/api/webhooks/1474251528377466932/gO9aIgcH4F8-OFme1G2ghp4frY2d-1FZO5EGcLFlw5D1pdyYBUJo_FWfNf8qnCtJboXc",
+        "webhook": "121212",
         "role_id": "1474251852538446050",
     },
     {
         "name": "discord_2",
-        "webhook": "https://discord.com/api/webhooks/1476030526300098724/JNIPfUDqtY1AOT3zN1D8MkDamIDMXSlWBDcKktTNgo2oz0j7Zn15yaiU6WkvJAWyHvgp",
+        "webhook": "12121",
         "role_id": "1476031613648240651",
     },
 ]
@@ -857,3 +857,4 @@ elif st.session_state.page == "instakill":
             if age >= 2.5:
                 st.session_state.ik_toast = None
                 st.rerun()
+
